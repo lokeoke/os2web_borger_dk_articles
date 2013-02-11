@@ -82,7 +82,7 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
       else {
         $node = $form_state['node'];
         $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
-        if (($titles_autocomplete) && (!isset($node->nid) || isset($node->is_new))) {
+        if (!isset($node->nid) || isset($node->is_new)) {
           os2web_borger_dk_articles_autocomplete_form($form, $form_state);
         }
 
@@ -157,6 +157,7 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
  * Function os2web_borger_dk_articles_autocomplete_form().
  */
 function os2web_borger_dk_articles_autocomplete_form(&$form, $form_state) {
+  $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
   $title_search_state = (isset($form_state['values']['new_borger_dk_article_search_method'])) ? TRUE : FALSE;
   $url_search = !$title_search_state;
 
@@ -174,23 +175,25 @@ function os2web_borger_dk_articles_autocomplete_form(&$form, $form_state) {
     '#maxlength' => 255,
   );
 
-  $form['new_borger_dk_article_import']['os2web_borger_dk_article_title_text'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Borger.dk Article title'),
-    '#default_value' => (isset($form_state['values']['os2web_borger_dk_article_title_text'])) ? $form_state['values']['os2web_borger_dk_article_title_text'] : '',
-    '#autocomplete_path' => 'import/borger-dk-article/autocomplete',
-    '#size' => 60,
-    '#maxlength' => 255,
-    '#attributes' => array('class' => array('auto_submit')),
-  );
+  if ($titles_autocomplete) {
+    $form['new_borger_dk_article_import']['os2web_borger_dk_article_title_text'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Borger.dk Article title'),
+      '#default_value' => (isset($form_state['values']['os2web_borger_dk_article_title_text'])) ? $form_state['values']['os2web_borger_dk_article_title_text'] : '',
+      '#autocomplete_path' => 'import/borger-dk-article/autocomplete',
+      '#size' => 60,
+      '#maxlength' => 255,
+      '#attributes' => array('class' => array('auto_submit')),
+    );
 
-  $form['new_borger_dk_article_import']['os2web_borger_dk_article_title_search'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Search for Borger.dk Article by Title-search'),
-    '#description' => t('If checked Borger.dk articles are found by title (by URL if un-checked).'),
-    '#default_value' => ($url_search) ? 1 : 0,
-    '#after_build' => array('_os2web_borger_dk_articles_autocomplete_form_load_js'),
-  );
+    $form['new_borger_dk_article_import']['os2web_borger_dk_article_title_search'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Search for Borger.dk Article by Title-search'),
+      '#description' => t('If checked Borger.dk articles are found by title (by URL if un-checked).'),
+      '#default_value' => ($url_search) ? 1 : 0,
+      '#after_build' => array('_os2web_borger_dk_articles_autocomplete_form_load_js'),
+    );
+  }
 }
 
 /**
@@ -541,8 +544,8 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
       }
       else {
         // Lets look for the text directly in our Title list
-        $sql = "SELECT `ArticleID` FROM {os2web_borger_dk_titles} WHERE `ArticleStatus` >= 0 AND LOWER(ArticleTitle) LIKE LOWER('" . $string . "%') LIMIT 1";
-        $aid = db_query($sql, array('%str' => $string))->fetchField();
+        drupal_set_message(t('No Borger.dk article with title "!title" exists.', array('!title' => $borger_dk_title)), 'warning');
+        drupal_goto('node/add/borger-dk-article');
       }
       if (isset($aid) && $aid >= 0) {
         // We have not imported this article before, and we do so now
