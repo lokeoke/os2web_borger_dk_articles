@@ -1,0 +1,29 @@
+div.microArticle h2 {
+  border-bottom: 1px;
+  border-bottom-color: #ffffff;
+  font-size: 13px;
+  margin-bottom: 5px;
+  margin-top: 5px;
+  padding-left: 10px;
+}
+
+div.microArticle div {
+  background-color: white;
+}
+
+div.field-items h3 {
+  font-size: 13px;
+  margin-bottom: 5px;
+  margin-top: 5px;
+}
+
+div.field-items h4 {
+  font-size: 13px;
+  margin-bottom: 5px;
+  margin-top: 5px;
+}
+
+div.field.field-name-field-os2web-selfservice.field-type-text-long.field-label-hidden {
+  background-color: #ffffff;
+  -moz-border-radius: 2px;
+}
