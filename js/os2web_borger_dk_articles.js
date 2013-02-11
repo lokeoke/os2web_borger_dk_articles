@@ -7,9 +7,17 @@
         var style = $('div.' + myid).css('display');
         if (style == 'none') {
           $("div." + myid).show("500");
+          $(this).css({
+            'background-image' : 'url("../sites/all/modules/os2web_borger_dk_articles/images/foldIn.png")',
+            'color' : 'red',
+          });
         }
         else {
           $("div." + myid).hide("500");
+          $(this).css({
+            'background-image' : 'url("../sites/all/modules/os2web_borger_dk_articles/images/foldOut.png")',
+            'color' : 'black',
+          });
         }
       });
     }

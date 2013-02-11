@@ -1338,7 +1338,13 @@ function _os2web_borger_dk_articles_parse_borgerdk_article($article) {
         break;
 
       case 'byline':
-        $borgerdk_article['byline']              = _os2web_borger_dk_articles_create_general_html($div->div);
+        $byline                                  = _os2web_borger_dk_articles_create_general_html($div->div);
+        if (strpos($byline, '<div>Skrevet af ')) {
+          $search  = '/^<div>Skrevet af (.+?)<\/div>/';
+          $replace = '$1';
+          $byline = preg_replace($pattern, $replace, $byline);
+        }
+        $borgerdk_article['byline']              = $byline;
         break;
 
       case 'anbefaler':
