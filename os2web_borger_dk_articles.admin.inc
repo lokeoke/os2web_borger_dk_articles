@@ -35,6 +35,7 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
   }
   $form_display = variable_get('os2web_borger_dk_articles_display');
 
+  $selected = array();
   if (isset($form_display) && !empty($form_display)) {
     $selected = $form_display;
   }
@@ -57,6 +58,7 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
     '#group' => 'vertical_settings_tab',
   );
   $form_editable = variable_get('os2web_borger_dk_articles_editable');
+  $selected2 = array();
   if (isset($form_editable) && !empty($form_editable)) {
     $selected2 = $form_editable;
   }
