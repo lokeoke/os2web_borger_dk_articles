@@ -32,9 +32,9 @@ function os2web_borger_dk_articles_menu() {
   );
 
   $items['import/borger-dk-article/autocomplete/%'] = array(
-    'page callback'    => '_os2web_borger_dk_articles_autocomplete_callback',
+    'page callback' => '_os2web_borger_dk_articles_autocomplete_callback',
     'page arguments' => array(3),
-    'access arguments' => array('access content'),
+    'access arguments' => array('create borger_dk_article content'),
     'type' => MENU_CALLBACK,
   );
 
@@ -651,29 +651,20 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
  */
 function os2web_borger_dk_articles_cron() {
   $cron_settings_time = variable_get('borger_dk_nightly_article_sync', FALSE);
-  $system_cron_run_time = variable_get('cron_safe_threshold', DRUPAL_CRON_DEFAULT_THRESHOLD);
   $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
-  // Is cron_settings_time active before we tamper with it
-  $cron_settings_time_active = (isset($cron_settings_time)) ? TRUE : FALSE;
-
-  // If titles should be autocompleted / downloaded nightly then our setting 
-  // for cron_settings_time must have a value (tampering)
-  if ($titles_autocomplete && !$cron_settings_time_active) {
-    $cron_settings_time = 3;
-  }
 
   // Then we can find out if it is time for our cron-job to run
   if (!empty($cron_settings_time)) {
     $current_time = time();
-    $cur_hour = date('H', $current_time);
-    if ($cur_hour + $system_cron_run_time > 24) {
-      $cron_settings_time += 24;
+    $current_hour = date('G', $current_time);
+    if ($current_hour == '0') {
+      $current_hour = '24';
     }
-    if (($cron_settings_time > $cur_hour) && ($cron_settings_time <= $cur_hour + $system_cron_run_time)) {
+
+    if ($cron_settings_time == $current_hour) {
       // Run the auto-update for articles already imported
-      if ($cron_settings_time_active) {
-        _os2web_borger_dk_articles_cronbatch();
-      }
+      _os2web_borger_dk_articles_cronbatch();
+
       // Run the auto-update for article-titles / autocomplete
       if ($titles_autocomplete) {
         // We must fetch a list of all availlable articles from the Borger.dk
@@ -703,27 +694,24 @@ function _os2web_borger_dk_articles_cron_queue() {
  */
 function _os2web_borger_dk_articles_cronbatch() {
   // First we determine the time for our last check for new updates
-  //$strtime = strtotime("2010-01-04T17:00:00")
   $this_run = time();
   $last_run = variable_get('os2web_borger_dk_articles_last_update', time());
   $updated_after = date('Y-m-d\TH\:i\:s', $last_run);
   $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
 
   // Next we get a list of all imported articles
-
-  // TODO: MUST USE the Titles-table->LastUpdated timestamp for updates
-  // TO OUR nid->aid LIST AND CRONJOBS ETC!!! !!FIX:P2
-
   $article_id_list = array();
   $article_id_to_nid = array();
-  $result = db_query('SELECT nid, external_id FROM {os2web_borger_dk_articles} WHERE external_status = 1');
+  $result = db_query('SELECT nid, external_id FROM {os2web_borger_dk_articles} WHERE external_status > 0');
   foreach ($result as $item) {
     // We also build an index of "external_id" => "nid"
     $article_id2nid[$item->external_id] = $item->nid;
     $article_id_list[] = $item->external_id;
   }
 
-  // Then we get all the updated articles
+  // Then we get all the updated articles. We can not(!) use the LastUpdated-
+  // field in the 'os2web_borger_dk_titles'-table since it only works when
+  // titles-autocomplete has been activated.
   $articles = array();
   $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
   $articles = _os2web_borger_dk_articles_GetArticlesByIDs($article_id_list, $updated_after, $wsdl);
@@ -751,8 +739,10 @@ function _os2web_borger_dk_articles_cronbatch() {
         }
       }
       else {
-        // Articles with errors might have been deleted, and we must handle it
-        // But if "Titles autocomplete" is active, then is will handle it
+        // Articles with errors might have been deleted, and we must handle it.
+        // But if "Titles autocomplete" is active, then it will be handled by
+        // the titles-auto-update in the cron-function:
+        // _os2web_borger_dk_articles_titles_cronbatch()
         if (!$titles_autocomplete) {
           // Try to get this one article, to see if it still exists
           $item = _os2web_borger_dk_articles_GetArticleByID($external_id, $wsdl);
@@ -773,7 +763,7 @@ function _os2web_borger_dk_articles_cronbatch() {
   // Next we update/queue the articles that should be deleted
   // deleted_ids will only contain elements if "Titles autocomplete" is inactive
   if (!empty($deleted_ids)) {
-    $sql = "UPDATE {os2web_borger_dk_articles} SET external_status = -2, last_updated = :updated WHERE external_status >= 0 AND nid IN (:nids)";
+    $sql = "UPDATE {os2web_borger_dk_articles} SET external_status = -2 WHERE nid IN (:nids)";
     $nid_list = implode(',', $deleted_ids);
     db_query($sql, array(':updated' => $this_run, ':nids' => $nid_list));
   }
@@ -820,28 +810,32 @@ function _os2web_borger_dk_articles_titles_cronbatch($first_run = FALSE) {
   // We must update the table of Borger.dk Article titles
   // And to do that we must know what is already there, so that we can mark
   // un-listed titles for deletion
-  $titles_result = db_query('SELECT `ArticleID`, `ArticleStatus` FROM {os2web_borger_dk_titles} WHERE `ArticleStatus` >= 0');
+  $titles_result = db_query('SELECT `ArticleID`, `ArticleStatus`, `LastUpdated` FROM {os2web_borger_dk_titles} WHERE `ArticleStatus` >= 0');
   $known_ids = array();
   foreach ($titles_result as $item) {
     $aid = $item->ArticleID;
-    $known_ids[$aid] = $item->ArticleStatus;
+    $known_ids[$aid] = array('ArticleStatus' => $item->ArticleStatus, 'LastUpdated' => $item->LastUpdated);
   }
 
   foreach ($titles_availlable as $id => $item) {
     $aid = $item['ArticleID'];
     // Check the known status (if any)
     if (isset($known_ids[$aid])) {
+      // Before we update we check if it has been changed
+      $updated = strtotime($item['LastUpdated']);
+      if ($updated > $known_ids[$aid]['LastUpdated']) {
       // We know about this article and we update the DB-entry
-      db_update('os2web_borger_dk_titles')
-        ->fields(array(
-          'ArticleTitle' => $item['ArticleTitle'],
-          'ArticleUrl'   => $item['ArticleUrl'],
-          'LastUpdated'  => strtotime($item['LastUpdated']),
-          'FORMFields'   => $item['FORMFields'],
-        ))
-        ->condition('ArticleID', $aid, '=')
-        ->execute();
-
+      // because the content has changed since we updated it last
+        db_update('os2web_borger_dk_titles')
+          ->fields(array(
+            'ArticleTitle' => $item['ArticleTitle'],
+            'ArticleUrl'   => $item['ArticleUrl'],
+            'LastUpdated'  => $updated,
+            'FORMFields'   => $item['FORMFields'],
+          ))
+          ->condition('ArticleID', $aid, '=')
+          ->execute();
+      }
       // We remove this item from the list of known ID's so that we can
       // find out if all the known ID's were found in the list
       unset($known_ids[$aid]);
@@ -850,7 +844,7 @@ function _os2web_borger_dk_articles_titles_cronbatch($first_run = FALSE) {
       // This is a new article-title and we must insert it into DB
       db_insert('os2web_borger_dk_titles')
         ->fields(array(
-          'ArticleID'      => $item['ArticleID'],
+          'ArticleID'      => $aid,
           'ArticleTitle'   => $item['ArticleTitle'],
           'ArticleUrl'     => $item['ArticleUrl'],
           'LastUpdated'    => strtotime($item['LastUpdated']),
@@ -888,6 +882,7 @@ function _os2web_borger_dk_articles_titles_cronbatch($first_run = FALSE) {
     foreach ($result as $item) {
       $qitem = array('nid' => $item->nid, 'external_id' => $item->external_id);
       $queue->createItem($qitem);
+      $log .= '=> Item: '. print_r($qitem, TRUE) ."\n";
     }
   }
 }
@@ -896,10 +891,6 @@ function _os2web_borger_dk_articles_titles_cronbatch($first_run = FALSE) {
  * Implements hook_cron_queue_info().
  */
 function os2web_borger_dk_articles_cron_queue_info() {
-  // TODO: expand the system_settings_form with a number of
-  // seconds to spend on the deleted-queue items so that it
-  // is NOT hardcoded to 60 seconds. WHAT if the cron-request
-  // can only run for 20 seconds???
   $queues = array();
   $queues['os2web_borger_dk_articles_delete_queue'] = array(
     // Function to call for each item.
@@ -934,7 +925,7 @@ function _borger_dk_article_status_check_queue_callback($data) {
     if (!empty($item['error_type']) && ($item['error_type'] == 'not_found')) {
       // Not found articles are marked for deletion, which is handled by another queue
       $sql = "UPDATE {os2web_borger_dk_articles} SET `external_status` = -2 WHERE `nid` = :nid";
-      db_query($sql, array(':aid' => $data['nid']));
+      db_query($sql, array(':nid' => $data['nid']));
     }
     else {
       $msg  = 'Borger.dk webservice returned an error for an imported article with id=%aid. ';
@@ -957,43 +948,6 @@ function _borger_dk_article_status_check_queue_callback($data) {
     $sql = "UPDATE {os2web_borger_dk_titles} SET `ArticleStatus` = :nid WHERE `ArticleID` = :aid";
     db_query($sql, array(':nid' => $data['nid'], ':aid' => $data['external_id']));
   }
-
-  /* THIS IS A METHOD FOR KEEPING OUR WEBSERVICE-REQUESTS WITHIN SOME GIVEN BOUNDRIES
-     WE DO NOT NEED IT HERE BECAUSE OUR hook_cron ONLY USES ONE WEBSERVICE-REQUEST
-  // Queue delete and release.
-  static $os2web_borger_dk_article_count_no;
-  static $os2web_borger_dk_article_start_time;
-  // Setup the counters for limiting batch work-load for external webservice
-  if (!isset($os2web_borger_dk_article_count_no)) {
-    $os2web_borger_dk_article_count_no = 0;
-    $os2web_borger_dk_article_start_time = time();
-  }
-
-  // TODO: Expand system_settings_form with vaiable_get('os2web_borger_dk_webservice_time_limit', 60),
-  // and variable_get('os2web_borger_dk_webservice_request_limit', 100)
-  // TODO: Use the system_settings_form-settings instead of hardcoded values
-  // Check if we are within the work-load limit before working on a queue item
-  if ( (60 > (time() - $os2web_borger_dk_article_start_time)) || (100 > $os2web_borger_dk_article_count_no) ) {
-      // We have reached the work-load limit of 100 items per minute, and must
-      // take a small break or the webservice will stop answering us
-      sleep(60 - (time() - $os2web_borger_dk_article_start_time));
-
-      // Then we reset the counters for limiting the batch work-load
-      $os2web_borger_dk_article_count_no = 0;
-      $os2web_borger_dk_article_start_time = time();
-  }
-
-  // Now we fetch the next queued article item from the Borger.dk webservice
-  $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
-  $article = _os2web_borger_dk_articles_GetArticleByID($data['external_id'], $wsdl);
-
-  // And then we update the node content with the fetched article
-  _os2web_borger_dk_articles_update_node_content($data['nid'], $article);
-
-  // Update the work-load item counter
-  $os2web_borger_dk_article_count_no += 1;
-  */
-
 }
 
 /**
@@ -1002,7 +956,6 @@ function _borger_dk_article_status_check_queue_callback($data) {
  * writes a log-message, and stores it as a new revision
  */
 function _borger_dk_articles_delete_queue_callback($data) {
-
   // Each data-element point to an article that should be deleted / unpublished
   // First we load the current node
   $node = node_load($data['nid']);
@@ -1083,13 +1036,6 @@ function _os2web_borger_dk_articles_update_node_content($nid, $article) {
     ->fields(array('last_updated' => strtotime($article['last_updated'])))
     ->condition('nid', $nid, '=')
     ->execute();
-
-  /*
-  NODE-FIELDS THAT SHOULD NOT BE UPDATED:
-  1) borger_dk_article['field_settings']	=> Can only be changed by admin/editor
-  2 field_os2web_pre_text			=> Drupal node-content (not from Borger.dk)
-  3) field_os2web_post_text			=> Drupal node-content (not from Borger.dk)
-  */
 }
 
 /**
@@ -1427,11 +1373,6 @@ function _os2web_borger_dk_articles_create_kernetekst_html($xml) {
     $div_attr = $element->attributes()->id;
     $search  = '<div id="'. $div_attr .'">';
     $replace = '<div class="microArticle" id="'. $div_attr .'">';
-    // TODO: Get HTML and find the title. Put the title in a div-tag on its own
-    // with some class that makes it expandable / hide-able. Then put "the rest"
-    // of the div-content into another expandable / hide-able div, so that the
-    // title-div can be used to fold the content in/out: When one div is shown
-    // the other is hidden, and vice versa
     $html = _os2web_borger_dk_articles_create_html_from_xml($element, $search, $replace);
 
     // We replace the first <h2>-tag with <h2 class="mArticleX">
@@ -1547,44 +1488,3 @@ function _os2web_borger_dk_articles_translate_soap_fault($borgerdk_id, $faultcod
 
   return $error;
 }
-
-    /*
-      NODE-FELTER:
-      1)  field_os2web_borger_dk_url
-      2)  node-borger_dk_article-body	=> body
-      3)  field_os2web_legislation
-      4)  field_os2web_selfservice
-      5)  field_os2web_pre_text		=> Drupal node-content (not from Borger.dk)
-      6)  field_os2web_post_text	=> Drupal node-content (not from Borger.dk)
-      7)  field_os2web_header
-      8)  field_os2web_byline
-      9)  field_os2web_recommended
-      10) field_os2web_shortlist
-      
-      HENT DISSE FELTER FRA BORGER.DK:
-      1) Titlen på artiklen: 		<=> "ArticleTitle"				<=> title
-      2) Artiklens manchet: 		<=> "ArticleHeader"				<=> field_os2web_header
-      3) Artikelteksten:		<=> <div id='kernetekst'>			<=> body
-      4) Byline				<=> <div id='byline'>				<=> field_os2web_byline
-      5) Portalservice/selvbetjening:	<=> <div id='selvbetjeningslinks'>		<=> field_os2web_selfservice
-      6) Lovgivning:			<=> <div id='lovgivning'>			<=> field_os2web_legislation
-
-      EKSTRA FELTER FRA BORGER.DK (IKKE TIDLIGERE DEFINERET):
-      7) Huskeliste:			<=> <div id='huskeliste'>			<=> field_os2web_shortlist
-      8) Anbefaler			<=> <div id='anbefaler'>			<=> field_os2web_recommended
-
-
-      EKSTRA FELTER TIL OPDATERINGS-STYRING ETC.:
-      A) Eksternt ID:			<=> "ArticleID"
-      B) Ekstern URL:			<=> "ArticleUrl"
-      C) Last updated:			<=> "LastUpdated"
-      D) Published date:		<=> "PublishingDate"
-
-      GAMLE FELTER FRA SPEC. ER SLETTET NU
-      A) Publikationer:			Deprecated => skal slettes!
-      B) Kontakter:			Deprecated => skal slettes!
-      C) Lokalt indhold:		Kan ikke hentes ud som et enkelt felt da hver microArticle
-					kan indholde eget lokalt indhold som kun kommer med for
-					artiklerne hvis de hentes med en kommune-kode
-    */
-
