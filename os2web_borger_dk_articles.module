@@ -95,10 +95,6 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
         $checkbox_opts = array();
         $initial_values = array();
         $data['title'] = array('label' => 'Title');
-        //$log  = 'form_alter: '."\n";
-        //$log .= 'field_info_instances: '. print_r($data, TRUE) ."\n";
-        //$log .= 'admin_display_fields: '. print_r($admin_display_fields, TRUE) ."\n";
-        //$log .= 'visible_items: '. print_r($visible_items, TRUE) ."\n";
         foreach ($data as $type => $item) {
           if ($admin_display_fields[$type]) {
             // admin-config says we should show this item as an option
@@ -111,9 +107,6 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
             }
           }
         }
-        //$log .= 'checkbox_opts: '. print_r($checkbox_opts, TRUE) ."\n";
-        //$log .= 'default_values: '. print_r($default_values, TRUE) ."\n";
-        //error_log($log ."\n", 3, '/home/peter/bellcom/log/debug_file2.log');
 
         // This is the field fieldset.
         $form['fields_visible_formset'] = array(
@@ -405,7 +398,6 @@ function os2web_borger_dk_articles_node_insert($node) {
  * Implements hook_node_delete().
  */
 function os2web_borger_dk_articles_node_delete($node) {
-  error_log('hook_node_delete: node->nid: '. $node->nid .', node->borger_dk_article: '. print_r($node->borger_dk_article, TRUE) ."\n\n", 3, '/home/peter/bellcom/log/debug_file2.log');
   // First we delete the article-data from the node-additions table
   db_delete('os2web_borger_dk_articles')
     ->condition('nid', $node->nid)
@@ -921,7 +913,6 @@ function os2web_borger_dk_articles_cron_queue_info() {
     // Seconds to spend working on the queue.
     'time' => 60,
   );
-  //error_log('1) cron_queue_info -> queue_info: '. print_r($queues, TRUE) ."\n\n", 3, '/srv/www/log/debug_file.log');
 
   return $queues;
 }
@@ -1028,7 +1019,6 @@ function _borger_dk_articles_delete_queue_callback($data) {
 
   $msg = 'Cronjob has un-published the article node/%nid because is has been deleted at Borger.dk';
   watchdog('Borger.dk-articles', $msg, $variables = array('%nid' => $node->nid));
-  //error_log('1) cron_callback -> un-published borger_dk_article: node/'. $node->nid ."\n\n", 3, '/home/peter/bellcom/log/debug_file.log');
 }
 
 /**
