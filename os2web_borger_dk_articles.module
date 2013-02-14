@@ -31,6 +31,7 @@ function os2web_borger_dk_articles_menu() {
     'file' => 'os2web_borger_dk_articles.admin.inc',
   );
 
+  // TODO: Test the 'access arguments' with another user!!
   $items['import/borger-dk-article/autocomplete/%'] = array(
     'page callback' => '_os2web_borger_dk_articles_autocomplete_callback',
     'page arguments' => array(3),
@@ -586,24 +587,24 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
     $node->validated = TRUE;
     // Insert default value of a new node.
     $node->type = 'borger_dk_article';
-    $node->title                                         = $article['title'];
+    $node->title                                         = (!empty($article['title'])) ? $article['title'] : ''
     $node->body['und'][0]['value']                       = $body;
-    $node->field_os2web_borger_dk_url['und'][0]['value'] = $article['external_url'];
-    $node->field_os2web_header['und'][0]['value']        = $article['header'];
-    $node->field_os2web_selfservice['und'][0]['value']   = $article['selvbetjeningslinks'];
-    $node->field_os2web_byline['und'][0]['value']        = $article['byline'];
-    $node->field_os2web_legislation['und'][0]['value']   = $article['lovgivning'];
-    $node->field_os2web_shortlist['und'][0]['value']     = $article['huskeliste'];
-    $node->field_os2web_recommended['und'][0]['value']   = $article['anbefaler'];
+    $node->field_os2web_borger_dk_url['und'][0]['value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
+    $node->field_os2web_header['und'][0]['value']        = (!empty($article['header'])) ? $article['header'] : '';
+    $node->field_os2web_selfservice['und'][0]['value']   = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
+    $node->field_os2web_byline['und'][0]['value']        = (!empty($article['byline'])) ? $article['byline'] : '';
+    $node->field_os2web_legislation['und'][0]['value']   = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
+    $node->field_os2web_shortlist['und'][0]['value']     = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
+    $node->field_os2web_recommended['und'][0]['value']   = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
 
     $node->body['und'][0]['safe_value']                       = $body;
-    $node->field_os2web_borger_dk_url['und'][0]['safe_value'] = $article['external_url'];
-    $node->field_os2web_header['und'][0]['safe_value']        = $article['header'];
-    $node->field_os2web_selfservice['und'][0]['safe_value']   = $article['selvbetjeningslinks'];
-    $node->field_os2web_byline['und'][0]['safe_value']        = $article['byline'];
-    $node->field_os2web_legislation['und'][0]['safe_value']   = $article['lovgivning'];
-    $node->field_os2web_shortlist['und'][0]['safe_value']     = $article['huskeliste'];
-    $node->field_os2web_recommended['und'][0]['safe_value']   = $article['anbefaler'];
+    $node->field_os2web_borger_dk_url['und'][0]['safe_value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
+    $node->field_os2web_header['und'][0]['safe_value']        = (!empty($article['header'])) ? $article['header'] : '';
+    $node->field_os2web_selfservice['und'][0]['safe_value']   = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
+    $node->field_os2web_byline['und'][0]['safe_value']        = (!empty($article['byline'])) ? $article['byline'] : '';
+    $node->field_os2web_legislation['und'][0]['safe_value']   = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
+    $node->field_os2web_shortlist['und'][0]['safe_value']     = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
+    $node->field_os2web_recommended['und'][0]['safe_value']   = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
 
     $node->body['und'][0]['format']                     = 'full_html';
     $node->field_os2web_header['und'][0]['format']      = 'full_html';
@@ -650,26 +651,40 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
  * Implements hook_cron().
  */
 function os2web_borger_dk_articles_cron() {
-  $cron_settings_time = variable_get('borger_dk_nightly_article_sync', FALSE);
+  $cron_settings_time_articles = variable_get('borger_dk_nightly_article_sync', FALSE);
   $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
+  $borger_dk_menus_import = variable_get('borger_dk_articles_borger_dk_menus_import', FALSE);
+  $cron_settings_time_menus = variable_get('borger_dk_articles_nightly_menu_sync');
 
   // Then we can find out if it is time for our cron-job to run
-  if (!empty($cron_settings_time)) {
+  if (!empty($cron_settings_time_articles) || !empty($cron_settings_time_menus)) {
     $current_time = time();
     $current_hour = date('G', $current_time);
     if ($current_hour == '0') {
       $current_hour = '24';
     }
 
-    if ($cron_settings_time == $current_hour) {
-      // Run the auto-update for articles already imported
+    // Is it time for auto-updating imported Borger.dk-articles.
+    if ($cron_settings_time_articles == $current_hour) {
+      // Run the auto-update for articles already imported.
       _os2web_borger_dk_articles_cronbatch();
-
-      // Run the auto-update for article-titles / autocomplete
-      if ($titles_autocomplete) {
-        // We must fetch a list of all availlable articles from the Borger.dk
+      // If Borger.dk-menus should not be fetched then we must
+      // still fetch availlable Borger.dk-titles if autocomplete
+      // has been activated.
+      if ($titles_autocomplete && !$borger_dk_menus_import) {
+        // We must fetch a list of all availlable articles from Borger.dk.
         _os2web_borger_dk_articles_titles_cronbatch();
       }
+    }
+
+    // Is it time for fetching Borger.dk-menus or should we fetch a new
+    // list of availlable Borger.dk-titles. In order for this function
+    // to run only once we must have extensive checks on what kind of
+    // functionality has been enabled.
+    if (($titles_autocomplete && !$borger_dk_menus_import) || ($borger_dk_menus_import && ($cron_settings_time_menus == $current_hour))) {
+      // Run the auto-update for menus, and article-titles / autocomplete.
+      // We must fetch a list of all availlable articles from Borger.dk.
+      _os2web_borger_dk_articles_titles_cronbatch();
     }
   }
 
@@ -803,6 +818,7 @@ function _os2web_borger_dk_articles_cronbatch() {
  * Function _os2web_borger_dk_articles_titles_cronbatch()
  */
 function _os2web_borger_dk_articles_titles_cronbatch($first_run = FALSE) {
+  $borger_dk_menus_import = variable_get('borger_dk_articles_borger_dk_menus_import', FALSE);
   $titles_availlable = array();
   $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
   $titles_availlable = _os2web_borger_dk_articles_GetAllArticles($wsdl);
@@ -853,6 +869,13 @@ function _os2web_borger_dk_articles_titles_cronbatch($first_run = FALSE) {
         ))
         ->execute();
     }
+  }
+
+  // Should we also import the menu-structure from Borger.dk.
+  if (!empty($borger_dk_menus_import)) {
+    // We must step through the FORM-Fields in the availlable titles
+    // in order to recreate the Borger.dk-menu structure.
+    //$menu = _os2web_borger_dk_articles_build_borger_dk_menus($titles_availlable);
   }
 
   // NB: If this is run for the first time we should do an early exit
@@ -995,34 +1018,34 @@ function _os2web_borger_dk_articles_update_node_content($nid, $article) {
     $body .= $content . "\n";
   }
 
-  $node->title                                            = $article['title'];
+  $node->title                                            = (!empty($article['title'])) ? $article['title'] : '';
 
   $node->body['und'][0]['value']                          = $body;
   $node->body['und'][0]['safe_value']                     = $body;
   $node->body['und'][0]['format']                         = 'full_html';
 
-  $node->field_os2web_byline['und'][0]['value']           = $article['byline'];
-  $node->field_os2web_byline['und'][0]['safe_value']      = $article['byline'];
+  $node->field_os2web_byline['und'][0]['value']           = (!empty($article['byline'])) ? $article['byline'] : '';
+  $node->field_os2web_byline['und'][0]['safe_value']      = (!empty($article['byline'])) ? $article['byline'] : '';
   $node->field_os2web_byline['und'][0]['format']          = 'plaintext';
 
-  $node->field_os2web_header['und'][0]['value']           = $article['header'];
-  $node->field_os2web_header['und'][0]['safe_value']      = $article['header'];
+  $node->field_os2web_header['und'][0]['value']           = (!empty($article['header'])) ? $article['header'] : '';
+  $node->field_os2web_header['und'][0]['safe_value']      = (!empty($article['header'])) ? $article['header'] : '';
   $node->field_os2web_header['und'][0]['format']          = 'full_html';
 
-  $node->field_os2web_selfservice['und'][0]['value']      = $article['selvbetjeningslinks'];
-  $node->field_os2web_selfservice['und'][0]['safe_value'] = $article['selvbetjeningslinks'];
+  $node->field_os2web_selfservice['und'][0]['value']      = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
+  $node->field_os2web_selfservice['und'][0]['safe_value'] = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
   $node->field_os2web_selfservice['und'][0]['format']     = 'full_html';
 
-  $node->field_os2web_recommended['und'][0]['value']      = $article['anbefaler'];
-  $node->field_os2web_recommended['und'][0]['safe_value'] = $article['anbefaler'];
+  $node->field_os2web_recommended['und'][0]['value']      = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
+  $node->field_os2web_recommended['und'][0]['safe_value'] = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
   $node->field_os2web_recommended['und'][0]['format']     = 'full_html';
 
-  $node->field_os2web_legislation['und'][0]['value']      = $article['lovgivning'];
-  $node->field_os2web_legislation['und'][0]['safe_value'] = $article['lovgivning'];
+  $node->field_os2web_legislation['und'][0]['value']      = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
+  $node->field_os2web_legislation['und'][0]['safe_value'] = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
   $node->field_os2web_legislation['und'][0]['format']     = 'full_html';
 
-  $node->field_os2web_shortlist['und'][0]['value']        = $article['huskeliste'];
-  $node->field_os2web_shortlist['und'][0]['safe_value']   = $article['huskeliste'];
+  $node->field_os2web_shortlist['und'][0]['value']        = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
+  $node->field_os2web_shortlist['und'][0]['safe_value']   = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
   $node->field_os2web_shortlist['und'][0]['format']       = 'full_html';
 
   // Some fields from borger_dk_article can not be syncronized nor changed here.
@@ -1047,6 +1070,9 @@ function _os2web_borger_dk_articles_GetAllArticles($wsdl = 'https://www.borger.d
   $errors = array();
   // Then we can start using a new soap-client to find the article-ID from the Borger.dk-URL
   $client = new SoapClient($wsdl, array('exceptions' => 0));
+  // First we make sure to keep requests/minute within given limits.
+  _os2web_borger_dk_articles_check_webservice_constraints();
+  // Then we execute our webservice-request.
   $result_list = $client->GetAllArticles();
   if (is_soap_fault($result_list)) {
     $errors = _os2web_borger_dk_articles_translate_soap_fault('GetAllArticles', $result_list->faultcode, $result_list->faultstring);
@@ -1083,7 +1109,6 @@ function _os2web_borger_dk_articles_GetAllArticles($wsdl = 'https://www.borger.d
   return $article_items;
 }
 
-
 /**
  * Function _os2web_borger_dk_articles_GetArticlesByIDs()
  * This function uses the Borger.dk WebService GetArticlesByIDs
@@ -1102,6 +1127,9 @@ function _os2web_borger_dk_articles_GetArticlesByIDs($borgerdk_ids = NULL, $upda
   $client = new SoapClient($wsdl, array('exceptions' => 0));
   if (empty($updated_after) && !empty($borgerdk_ids)) {
     // We have a specified list of articles to fetch.
+    // First we make sure to keep requests/minute within given limits.
+    _os2web_borger_dk_articles_check_webservice_constraints();
+    // Then we execute our webservice-request.
     $result_list = $client->GetArticlesByIDs(array('articleIDs' => $borgerdk_ids));
     if (is_soap_fault($result_list)) {
       $errors = _os2web_borger_dk_articles_translate_soap_fault($borgerdk_ids, $result_list->faultcode, $result_list->faultstring);
@@ -1110,6 +1138,9 @@ function _os2web_borger_dk_articles_GetArticlesByIDs($borgerdk_ids = NULL, $upda
     }
   }
   elseif (!empty($updated_after) && empty($borgerdk_ids)) {
+    // First we make sure to keep requests/minute within given limits.
+    _os2web_borger_dk_articles_check_webservice_constraints();
+    // Then we execute our webservice-request.
     // We have a specified date, and want all articles that have been
     // updated since the given date.
     $result_list = $client->GetArticlesByIDs(array('updatedAfter' => $updated_after));
@@ -1120,6 +1151,9 @@ function _os2web_borger_dk_articles_GetArticlesByIDs($borgerdk_ids = NULL, $upda
     }
   }
   elseif (!empty($updated_after) && !empty($borgerdk_ids)) {
+    // First we make sure to keep requests/minute within given limits.
+    _os2web_borger_dk_articles_check_webservice_constraints();
+    // Then we execute our webservice-request.
     // We have a specified date, and a specified list of article-IDs. We
     // want all articles from that list that has also been updated since
     // the given date.
@@ -1132,7 +1166,6 @@ function _os2web_borger_dk_articles_GetArticlesByIDs($borgerdk_ids = NULL, $upda
   }
 
   $article_items = array();
-
   // Then we get the result-list from the specified webservice.
   $article_list = $result_list->GetArticlesByIDsResult;
   if (is_soap_fault($article_list)) {
@@ -1191,6 +1224,9 @@ function _os2web_borger_dk_articles_GetArticleByUrl($borgerdk_url, $wsdl = 'http
 
   // We start by using a soap-client to find the article-ID from the Borger.dk-URL
   $client = new SoapClient($wsdl, array('exceptions' => 0));
+  // First we make sure to keep requests/minute within given limits.
+  _os2web_borger_dk_articles_check_webservice_constraints();
+  // Then we execute our webservice-request.
   $result_id = $client->GetArticleIDByUrl(array('url' => $borgerdk_url));
   if (is_soap_fault($result_id)) {
     // An error was encountered and we examine it more closely
@@ -1223,6 +1259,9 @@ function _os2web_borger_dk_articles_GetArticleByID($borgerdk_id, $wsdl = 'https:
 
   // We use a soap-client to fetch the specified article from Borger.dk
   $client = new SoapClient($wsdl, array('exceptions' => 0));
+  // First we make sure to keep requests/minute within given limits.
+  _os2web_borger_dk_articles_check_webservice_constraints();
+  // Then we execute our webservice-request.
   $result_article = $client->GetArticleByID(array('articleID' => $borgerdk_id));
   if (is_soap_fault($result_article)) {
     // An error was encountered and we examine it more closely.
@@ -1360,7 +1399,6 @@ function _os2web_borger_dk_articles_parse_borgerdk_article_desc($article) {
   return $borgerdk_title;
 }
 
-
 /**
  * This function steps through the so called microArticle's and
  * converts plus concatenates each element as HTML
@@ -1487,4 +1525,41 @@ function _os2web_borger_dk_articles_translate_soap_fault($borgerdk_id, $faultcod
   }
 
   return $error;
+}
+
+function _os2web_borger_dk_articles_check_webservice_constraints() {
+  // We start of by getting the webservice request-limits.
+  $webservice_request_limit = variable_get('os2web_borger_dk_webservice_request_limit', 100);
+  $webservice_time_limit = variable_get('os2web_borger_dk_webservice_time_limit', 60);
+  // And we keep track of the number of webservice-requests per timeperiod.
+  $os2web_borger_dk_article_count_no = variable_get('os2web_borger_dk_webservice_request_counter', 0);
+  $os2web_borger_dk_article_start_time = variable_get('os2web_borger_dk_webservice_time_counter', 1970);
+  // We restart the counters if the timer is too old.
+  if ($os2web_borger_dk_article_start_time < (time() - $webservice_time_limit)) {
+    $os2web_borger_dk_article_count_no = 0;
+    $os2web_borger_dk_article_start_time = time();
+    variable_set('os2web_borger_dk_webservice_request_counter', 0);
+    variable_set('os2web_borger_dk_webservice_time_counter', time());
+  }
+
+  // Then we check if the limits has been reached, and it's time for a break.
+  if (($webservice_time_limit >= (time() - $os2web_borger_dk_article_start_time)) ||
+      ($webservice_request_limit >= $os2web_borger_dk_article_count_no) ) {
+    // We have reached the work-load limit of 100 items per minute, and must
+    // take a small break or the webservice will stop answering us.
+    sleep($webservice_time_limit - (time() - $os2web_borger_dk_article_start_time));
+
+    // Then we reset/store the counters for limiting the webservice work-load.
+    $os2web_borger_dk_article_count_no = 0;
+    $os2web_borger_dk_article_start_time = time();
+    variable_set('os2web_borger_dk_webservice_time_counter', time());
+  }
+
+  // TODO: Test this function by:
+  // 1) Increase counter by 10 instead of by 1
+  // 2) Reduce request_limit to 20 instead of 100
+  // 3) Import 3 articles within time-limit (and perhaps increase time-limit)
+  // Update the work-load item counter
+  $os2web_borger_dk_article_count_no += 1;
+  variable_set('os2web_borger_dk_webservice_request_counter', $os2web_borger_dk_article_count_no);
 }

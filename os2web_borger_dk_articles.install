@@ -16,8 +16,12 @@ function os2web_borger_dk_articles_uninstall() {
   variable_del('os2web_borger_dk_webservice');
   variable_del('os2web_borger_dk_webservice_request_limit');
   variable_del('os2web_borger_dk_webservice_time_limit');
+  variable_del('os2web_borger_dk_webservice_request_counter');
+  variable_del('os2web_borger_dk_webservice_time_counter');
   variable_del('borger_dk_article_titles_sync');
   variable_del('borger_dk_article_titles_search_auto_submit');
+  variable_del('borger_dk_articles_borger_dk_menus_import');
+  variable_del('borger_dk_articles_nightly_menu_sync');
 
   if (db_table_exists('os2web_borger_dk_articles')) {
     db_query('DROP TABLE {os2web_borger_dk_articles}');
@@ -56,8 +60,12 @@ function os2web_borger_dk_articles_install() {
   variable_set('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
   variable_set('os2web_borger_dk_webservice_request_limit', 100);
   variable_set('os2web_borger_dk_webservice_time_limit', 60);
+  variable_set('os2web_borger_dk_webservice_request_counter', 0);
+  variable_set('os2web_borger_dk_webservice_time_counter', time());
   variable_set('borger_dk_article_titles_sync', 1);
   variable_set('borger_dk_article_titles_search_auto_submit', 1);
+  variable_set('borger_dk_articles_borger_dk_menus_import', 0);
+  variable_set('borger_dk_articles_nightly_menu_sync', '0');
 
   // Next we populate the titles-table for title-autocomplete
   _os2web_borger_dk_articles_titles_cronbatch(TRUE);
