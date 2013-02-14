@@ -20,7 +20,6 @@ div.microArticle h2 {
   background-repeat: no-repeat;
   background-position: 98% 0;
   background-color: #F5F5F5;
-  border-bottom: 2px solid white;
   font-weight: bold;
   font-size: 13px;
   margin-bottom: 5px;
@@ -30,7 +29,6 @@ div.microArticle h2 {
 }
 
 div.field-items h3 {
-  font-size: 13px;
   margin-bottom: 5px;
   margin-top: 5px;
   padding-left: 10px;
@@ -39,16 +37,15 @@ div.field-items h3 {
 }
 
 div.field-items h4 {
-  font-size: 13px;
   margin-bottom: 5px;
   margin-top: 5px;
   padding-left: 10px;
 }
 
-div.field-items ul {
+/*div.field-items ul {
   padding-left: 10px;
   margin-left: 10px;
-}
+}*/
 
 div.field.field-name-field-os2web-selfservice.field-type-text-long.field-label-hidden {
   background-color: #ffffff;
