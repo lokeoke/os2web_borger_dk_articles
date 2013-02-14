@@ -415,31 +415,48 @@ function os2web_borger_dk_articles_node_delete($node) {
  * Implements hook_node_validate().
  */
 function os2web_borger_dk_articles_node_validate($node, $form, &$form_state) {
-  // Enforce a minimum word length of 3 on punch lines.
-  $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
-  if (!empty($form_state['values']['os2web_borger_dk_article_url_text'])) {
-    if (!$titles_autocomplete) {
-      $url = $form_state['values']['os2web_borger_dk_article_url_text'];
-      $pos = strpos($url, 'borger.dk/Sider');
-      if ($pos === FALSE) {
-        form_set_error('os2web_borger_dk_article_url_text', t('The Borger.dk-URL is not valid, please write a valid Borger.dk-URL.'));
+  if ($node->type == 'borger_dk_article') {
+    // Enforce a minimum word length of 3 on punch lines.
+    $admin_title_search = variable_get('borger_dk_article_titles_sync', FALSE);
+    $titles_search = isset($form_state['values']['os2web_borger_dk_article_title_search'])? $form_state['values']['os2web_borger_dk_article_title_search'] : FALSE;
+    $url_text = isset($form_state['values']['os2web_borger_dk_article_url_text']) ? $form_state['values']['os2web_borger_dk_article_url_text'] : FALSE;
+
+    // If admin config set up : import Borger.dk article by URL 
+    if ((!$admin_title_search) || ($titles_search == '0' && !isset($node->nid))) {
+      if (!$titles_search && !isset($node->nid)) {
+        if (!empty($url_text)) {
+          $url = $url_text;
+          $pos = strpos($url, 'borger.dk/Sider');
+            if ($pos === FALSE) {
+              form_set_error('os2web_borger_dk_article_url_text', t('The Borger.dk-URL is not valid, please write a valid Borger.dk-URL.'));
+            }
+        }
+        else {
+          form_set_error('os2web_borger_dk_article_url_text', t('The Borger.dk-URL is empty, please write a valid Borger.dk-URL.'));
+        }
       }
     }
+    // If admin config set up : import Borger.dk article by article title.
     else {
-      // Check that the found title contains an ArticleID
-      $borger_dk_title = $form_state['values']['os2web_borger_dk_article_title_text'];
-      $matches = array();
-      $aid = 0;
-      // This preg_match() looks for the last pattern like [33334] and if found extracts the numeric portion.
-      $result = preg_match('/\(ID:([0-9]+)\)$/', $borger_dk_title, $matches);
-      if ($result > 0) {
-        // If $result is nonzero, we found a match and can use it as the index into $matches.
-        $aid = $matches[$result];
-        $status = db_query('SELECT ArticleStatus FROM {os2web_borger_dk_titles} WHERE ArticleID = :aid', array(':aid' => $aid))->fetchField();
-        if ($status < 0) {
-          // This article is no longer availlable and we tell the user so
-          drupal_set_message(t('The Borger.dk article with title "!title" is no longer availlable', array('!title' => $borger_dk_url)), 'warning');
-          form_set_error('os2web_borger_dk_article_title_text', t('The Borger.dk Article-title has been deleted, please write a valid Borger.dk-URL.'));
+      // If search article checkbox by Title-search is CHECKED.
+      if ($titles_search == '1') {
+        $borger_dk_title = !empty($form_state['values']['os2web_borger_dk_article_title_text']) ? $form_state['values']['os2web_borger_dk_article_title_text'] : FALSE;
+        if (!$borger_dk_title) {
+          form_set_error('os2web_borger_dk_article_title_text', t('The Borger.dk Article title is empty, please write a Borger.dk Article title'));
+        }
+        $matches = array();
+        $aid = 0;
+        // This preg_match() looks for the last pattern like [33334] and if found extracts the numeric portion.
+        $result = preg_match('/\(ID:([0-9]+)\)$/', $borger_dk_title, $matches);
+        if ($result > 0) {
+          // If $result is nonzero, we found a match and can use it as the index into $matches.
+          $aid = $matches[$result];
+          $status = db_query('SELECT ArticleStatus FROM {os2web_borger_dk_titles} WHERE ArticleID = :aid', array(':aid' => $aid))->fetchField();
+          if ($status < 0) {
+            // This article is no longer availlable and we tell the user so
+            drupal_set_message(t('The Borger.dk article with title "!title" is no longer availlable', array('!title' => $borger_dk_url)), 'warning');
+            form_set_error('os2web_borger_dk_article_title_text', t('The Borger.dk Article-title has been deleted, please write a valid Borger.dk-URL.'));
+          }
         }
       }
     }
@@ -587,7 +604,7 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
     $node->validated = TRUE;
     // Insert default value of a new node.
     $node->type = 'borger_dk_article';
-    $node->title                                         = (!empty($article['title'])) ? $article['title'] : ''
+    $node->title                                         = (!empty($article['title'])) ? $article['title'] : '';
     $node->body['und'][0]['value']                       = $body;
     $node->field_os2web_borger_dk_url['und'][0]['value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
     $node->field_os2web_header['und'][0]['value']        = (!empty($article['header'])) ? $article['header'] : '';
