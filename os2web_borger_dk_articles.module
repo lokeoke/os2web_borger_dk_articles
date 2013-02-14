@@ -418,15 +418,17 @@ function os2web_borger_dk_articles_node_insert($node) {
  * Implements hook_node_delete().
  */
 function os2web_borger_dk_articles_node_delete($node) {
-  // First we delete the article-data from the node-additions table
-  db_delete('os2web_borger_dk_articles')
-    ->condition('nid', $node->nid)
-    ->execute();
-  // Then we set the status to "not imported" in the "Titles list"-table
-  db_update('os2web_borger_dk_titles')
-    ->fields(array('ArticleStatus' => 0))
-    ->condition('ArticleID', $node->borger_dk_article['external_id'], '=')
-    ->execute();
+  if ($node->type == 'borger_dk_article') {
+    // First we delete the article-data from the node-additions table
+    db_delete('os2web_borger_dk_articles')
+      ->condition('nid', $node->nid)
+      ->execute();
+    // Then we set the status to "not imported" in the "Titles list"-table
+    db_update('os2web_borger_dk_titles')
+      ->fields(array('ArticleStatus' => 0))
+      ->condition('ArticleID', $node->borger_dk_article['external_id'], '=')
+      ->execute();
+  }
 }
 
 
@@ -517,166 +519,168 @@ function os2web_borger_dk_articles_sync_submit($form, &$form_state) {
  * Implements hook_node_submit().
  */
 function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
-  // We must check if this is a "brand new" article or if it exists in the
-  // database already (NB: That's how we find out if it is brand new or not)
-  // Get the node->nid from the form['#node']
-  $nid = (!empty($form_state['values']['nid'])) ? $form_state['values']['nid'] : NULL;
-  if (!empty($nid)) {
-    // We have a node and should fetch field-values from form_state
-    // nid, external_id, external_url, field_settings, published_date, last_update
-    // EXCEPT: ONLY field_settings CAN BE UPDATED!!
-    $field_settings = $form_state['values']['field_settings'];
-    $serialized_data = serialize($field_settings);
-    db_update('os2web_borger_dk_articles')
-      ->fields(array('field_settings' => $serialized_data))
-      ->condition('nid', $nid, '=')
-      ->execute();
-    // All other fields are handled by the normal Drupal field-handling
-  }
-  else {
-    // We do not(!) have a node->nid and this is a brand new node
-    // We must get the Borger.dk-URL, fetch the article, and store
-    // the borger.dk-article content (i.e. the new node)
-    $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
-    $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
-    $borger_dk_url   = $form_state['values']['os2web_borger_dk_article_url_text'];
-    $borger_dk_title = $form_state['values']['os2web_borger_dk_article_title_text'];
-    $search_method   = $form_state['values']['os2web_borger_dk_article_title_search'];
+  if ($node->type == 'borger_dk_article') {
+    // We must check if this is a "brand new" article or if it exists in the
+    // database already (NB: That's how we find out if it is brand new or not)
+    // Get the node->nid from the form['#node']
+    $nid = (!empty($form_state['values']['nid'])) ? $form_state['values']['nid'] : NULL;
+    if (!empty($nid)) {
+      // We have a node and should fetch field-values from form_state
+      // nid, external_id, external_url, field_settings, published_date, last_update
+      // EXCEPT: ONLY field_settings CAN BE UPDATED!!
+      $field_settings = $form_state['values']['field_settings'];
+      $serialized_data = serialize($field_settings);
+      db_update('os2web_borger_dk_articles')
+        ->fields(array('field_settings' => $serialized_data))
+        ->condition('nid', $nid, '=')
+        ->execute();
+      // All other fields are handled by the normal Drupal field-handling
+    }
+    else {
+      // We do not(!) have a node->nid and this is a brand new node
+      // We must get the Borger.dk-URL, fetch the article, and store
+      // the borger.dk-article content (i.e. the new node)
+      $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
+      $titles_autocomplete = variable_get('borger_dk_article_titles_sync', FALSE);
+      $borger_dk_url   = $form_state['values']['os2web_borger_dk_article_url_text'];
+      $borger_dk_title = $form_state['values']['os2web_borger_dk_article_title_text'];
+      $search_method   = $form_state['values']['os2web_borger_dk_article_title_search'];
 
-    if ($search_method) {
-      // The title has been autocompleted, and we must find the ArticleID
-      $matches = array();
-      $aid = -1;
-      // This preg_match() looks for the last pattern like [33334] and if found extracts the numeric portion.
-      $result = preg_match('/\(ID:([0-9]+)\)$/', $borger_dk_title, $matches);
-      if ($result > 0) {
-        // If $result is nonzero, we found a match and can use it as the index into $matches.
-        $aid = $matches[$result];
-        $sql = "SELECT `ArticleID`, `ArticleStatus` FROM {os2web_borger_dk_titles} WHERE `ArticleID` = " . $aid . " LIMIT 1";
-        $data = db_query($sql)->fetchObject();
-        if ($data->ArticleStatus < 0) {
-          // This article is no longer availlable and we tell the user so
-          drupal_set_message(t('The Borger.dk article with title "!title" is no longer availlable', array('!title' => $borger_dk_title)), 'warning');
+      if ($search_method) {
+        // The title has been autocompleted, and we must find the ArticleID
+        $matches = array();
+        $aid = -1;
+        // This preg_match() looks for the last pattern like [33334] and if found extracts the numeric portion.
+        $result = preg_match('/\(ID:([0-9]+)\)$/', $borger_dk_title, $matches);
+        if ($result > 0) {
+          // If $result is nonzero, we found a match and can use it as the index into $matches.
+          $aid = $matches[$result];
+          $sql = "SELECT `ArticleID`, `ArticleStatus` FROM {os2web_borger_dk_titles} WHERE `ArticleID` = " . $aid . " LIMIT 1";
+          $data = db_query($sql)->fetchObject();
+          if ($data->ArticleStatus < 0) {
+            // This article is no longer availlable and we tell the user so
+            drupal_set_message(t('The Borger.dk article with title "!title" is no longer availlable', array('!title' => $borger_dk_title)), 'warning');
+            drupal_goto('node/add/borger-dk-article');
+            return;
+          }
+          elseif ($data->ArticleStatus > 0) {
+            // We have already imported this article and node->nid = ArticleStatus
+            drupal_set_message(t('The Borger.dk article with title "!title" has already been imported.', array('!title' => $borger_dk_title)), 'status');
+            drupal_set_message(t('You can re-import the article by clicking on the "Update now"-button below.'), 'status');
+            drupal_goto('node/' . $data->ArticleStatus . '/edit');
+            return;
+          }
+          elseif ($data->ArticleStatus == 0) {
+            $aid = $data->ArticleID;
+          }
+        }
+        else {
+          // Lets look for the text directly in our Title list
+          drupal_set_message(t('No Borger.dk article with title "!title" exists.', array('!title' => $borger_dk_title)), 'warning');
+          drupal_goto('node/add/borger-dk-article');
+        }
+        if (isset($aid) && $aid >= 0) {
+          // We have not imported this article before, and we do so now
+          $article = _os2web_borger_dk_articles_GetArticleByID($aid, $wsdl);
+        }
+        else {
+          $borger_dk_title = preg_replace('/ \(ID:([0-9]+)\)$/', '', $borger_dk_title);
+          drupal_set_message(t('Could not find any Borger.dk article with title "!title"', array('!title' => $borger_dk_title)), 'warning');
           drupal_goto('node/add/borger-dk-article');
           return;
         }
-        elseif ($data->ArticleStatus > 0) {
-          // We have already imported this article and node->nid = ArticleStatus
-          drupal_set_message(t('The Borger.dk article with title "!title" has already been imported.', array('!title' => $borger_dk_title)), 'status');
-          drupal_set_message(t('You can re-import the article by clicking on the "Update now"-button below.'), 'status');
-          drupal_goto('node/' . $data->ArticleStatus . '/edit');
+      }
+      else {
+        // Now we fetch the article item from the Borger.dk webservice
+        $article = _os2web_borger_dk_articles_GetArticleByUrl($borger_dk_url, $wsdl);
+
+        if (!empty($article['Exceptions']) || !empty($article['error'])) {
+          drupal_set_message(t('An error occured or an exception was thrown by the Borger.dk webservice for the specified URL.'), 'error');
+          drupal_set_message(t('You can fetch this article when the webservice is responsive again.'), 'error');
+          drupal_goto('node/add/borger-dk-article');
           return;
         }
-        elseif ($data->ArticleStatus == 0) {
-          $aid = $data->ArticleID;
+      }
+
+      // TODO: Expand system_settings_form with visibility for microArticle's
+      // TODO: Expand node->field_settings with visibility for microArticle's
+      $body = '';
+      foreach ($article['kernetekst'] as $div => $content) {
+        // TODO: Insert check for microArticle visibility. Use div values
+        $body .= $content . "\n";
+      }
+
+      // A user might assign the node author by entering a user name in the node
+      // form, which we then need to translate to a user ID.
+      if (isset($node->name)) {
+        if ($account = user_load_by_name($node->name)) {
+          $node->uid = $account->uid;
+        }
+        else {
+          $node->uid = 0;
         }
       }
-      else {
-        // Lets look for the text directly in our Title list
-        drupal_set_message(t('No Borger.dk article with title "!title" exists.', array('!title' => $borger_dk_title)), 'warning');
-        drupal_goto('node/add/borger-dk-article');
-      }
-      if (isset($aid) && $aid >= 0) {
-        // We have not imported this article before, and we do so now
-        $article = _os2web_borger_dk_articles_GetArticleByID($aid, $wsdl);
-      }
-      else {
-        $borger_dk_title = preg_replace('/ \(ID:([0-9]+)\)$/', '', $borger_dk_title);
-        drupal_set_message(t('Could not find any Borger.dk article with title "!title"', array('!title' => $borger_dk_title)), 'warning');
-        drupal_goto('node/add/borger-dk-article');
-        return;
-      }
-    }
-    else {
-      // Now we fetch the article item from the Borger.dk webservice
-      $article = _os2web_borger_dk_articles_GetArticleByUrl($borger_dk_url, $wsdl);
+
+      // And we update all the node-fields with the article-values
+      $node->created = !empty($node->date) ? strtotime($node->date) : REQUEST_TIME;
+      $node->validated = TRUE;
+      // Insert default value of a new node.
+      $node->type = 'borger_dk_article';
+      $node->title                                         = (!empty($article['title'])) ? $article['title'] : '';
+      $node->body['und'][0]['value']                       = (!empty($body)) ? $body : '';
+      $node->field_os2web_borger_dk_url['und'][0]['value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
+      $node->field_os2web_header['und'][0]['value']        = (!empty($article['header'])) ? $article['header'] : '';
+      $node->field_os2web_selfservice['und'][0]['value']   = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
+      $node->field_os2web_byline['und'][0]['value']        = (!empty($article['byline'])) ? $article['byline'] : '';
+      $node->field_os2web_legislation['und'][0]['value']   = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
+      $node->field_os2web_shortlist['und'][0]['value']     = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
+      $node->field_os2web_recommended['und'][0]['value']   = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
+
+      $node->body['und'][0]['safe_value']                       = (!empty($body)) ? $body : '';
+      $node->field_os2web_borger_dk_url['und'][0]['safe_value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
+      $node->field_os2web_header['und'][0]['safe_value']        = (!empty($article['header'])) ? $article['header'] : '';
+      $node->field_os2web_selfservice['und'][0]['safe_value']   = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
+      $node->field_os2web_byline['und'][0]['safe_value']        = (!empty($article['byline'])) ? $article['byline'] : '';
+      $node->field_os2web_legislation['und'][0]['safe_value']   = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
+      $node->field_os2web_shortlist['und'][0]['safe_value']     = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
+      $node->field_os2web_recommended['und'][0]['safe_value']   = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
+
+      $node->body['und'][0]['format']                     = 'full_html';
+      $node->field_os2web_header['und'][0]['format']      = 'full_html';
+      $node->field_os2web_selfservice['und'][0]['format'] = 'full_html';
+      $node->field_os2web_byline['und'][0]['format']      = 'full_html';
+      $node->field_os2web_legislation['und'][0]['format'] = 'full_html';
+      $node->field_os2web_shortlist['und'][0]['format']   = 'full_html';
+      $node->field_os2web_recommended['und'][0]['format'] = 'full_html';
+
+      $field_settings = $form_state['values']['field_settings'];
+      $external_status = (empty($article['Exceptions']) && empty($article['error'])) ? 1 : 0;
+      $external_status = (!empty($article['error']) && $article['error_type'] == 'not_found') ? -1 : $external_status;
+      $node->borger_dk_article = array(
+        'external_id'     => $article['external_id'],
+        'external_url'    => $article['external_url'],
+        'external_status' => $external_status,
+        'field_settings'  => $field_settings,
+        'published_date'  => strtotime($article['published_date']),
+        'last_updated'    => strtotime($article['last_updated']),
+      );
 
       if (!empty($article['Exceptions']) || !empty($article['error'])) {
-        drupal_set_message(t('An error occured or an exception was thrown by the Borger.dk webservice for the specified URL.'), 'error');
+        drupal_set_message(t('An exception was thrown by the Borger.dk webservice for the specified URL.'), 'error');
         drupal_set_message(t('You can fetch this article when the webservice is responsive again.'), 'error');
         drupal_goto('node/add/borger-dk-article');
-        return;
-      }
-    }
-
-    // TODO: Expand system_settings_form with visibility for microArticle's
-    // TODO: Expand node->field_settings with visibility for microArticle's
-    $body = '';
-    foreach ($article['kernetekst'] as $div => $content) {
-      // TODO: Insert check for microArticle visibility. Use div values
-      $body .= $content . "\n";
-    }
-
-    // A user might assign the node author by entering a user name in the node
-    // form, which we then need to translate to a user ID.
-    if (isset($node->name)) {
-      if ($account = user_load_by_name($node->name)) {
-        $node->uid = $account->uid;
       }
       else {
-        $node->uid = 0;
-      }
-    }
-
-    // And we update all the node-fields with the article-values
-    $node->created = !empty($node->date) ? strtotime($node->date) : REQUEST_TIME;
-    $node->validated = TRUE;
-    // Insert default value of a new node.
-    $node->type = 'borger_dk_article';
-    $node->title                                         = (!empty($article['title'])) ? $article['title'] : '';
-    $node->body['und'][0]['value']                       = $body;
-    $node->field_os2web_borger_dk_url['und'][0]['value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
-    $node->field_os2web_header['und'][0]['value']        = (!empty($article['header'])) ? $article['header'] : '';
-    $node->field_os2web_selfservice['und'][0]['value']   = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
-    $node->field_os2web_byline['und'][0]['value']        = (!empty($article['byline'])) ? $article['byline'] : '';
-    $node->field_os2web_legislation['und'][0]['value']   = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
-    $node->field_os2web_shortlist['und'][0]['value']     = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
-    $node->field_os2web_recommended['und'][0]['value']   = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
-
-    $node->body['und'][0]['safe_value']                       = $body;
-    $node->field_os2web_borger_dk_url['und'][0]['safe_value'] = (!empty($article['external_url'])) ? $article['external_url'] : '';
-    $node->field_os2web_header['und'][0]['safe_value']        = (!empty($article['header'])) ? $article['header'] : '';
-    $node->field_os2web_selfservice['und'][0]['safe_value']   = (!empty($article['selvbetjeningslinks'])) ? $article['selvbetjeningslinks'] : '';
-    $node->field_os2web_byline['und'][0]['safe_value']        = (!empty($article['byline'])) ? $article['byline'] : '';
-    $node->field_os2web_legislation['und'][0]['safe_value']   = (!empty($article['lovgivning'])) ? $article['lovgivning'] : '';
-    $node->field_os2web_shortlist['und'][0]['safe_value']     = (!empty($article['huskeliste'])) ? $article['huskeliste'] : '';
-    $node->field_os2web_recommended['und'][0]['safe_value']   = (!empty($article['anbefaler'])) ? $article['anbefaler'] : '';
-
-    $node->body['und'][0]['format']                     = 'full_html';
-    $node->field_os2web_header['und'][0]['format']      = 'full_html';
-    $node->field_os2web_selfservice['und'][0]['format'] = 'full_html';
-    $node->field_os2web_byline['und'][0]['format']      = 'full_html';
-    $node->field_os2web_legislation['und'][0]['format'] = 'full_html';
-    $node->field_os2web_shortlist['und'][0]['format']   = 'full_html';
-    $node->field_os2web_recommended['und'][0]['format'] = 'full_html';
-
-    $field_settings = $form_state['values']['field_settings'];
-    $external_status = (empty($article['Exceptions']) && empty($article['error'])) ? 1 : 0;
-    $external_status = (!empty($article['error']) && $article['error_type'] == 'not_found') ? -1 : $external_status;
-    $node->borger_dk_article = array(
-      'external_id'     => $article['external_id'],
-      'external_url'    => $article['external_url'],
-      'external_status' => $external_status,
-      'field_settings'  => $field_settings,
-      'published_date'  => strtotime($article['published_date']),
-      'last_updated'    => strtotime($article['last_updated']),
-    );
-
-    if (!empty($article['Exceptions']) || !empty($article['error'])) {
-      drupal_set_message(t('An exception was thrown by the Borger.dk webservice for the specified URL.'), 'error');
-      drupal_set_message(t('You can fetch this article when the webservice is responsive again.'), 'error');
-      drupal_goto('node/add/borger-dk-article');
-    }
-    else {
-      // We need to store the field values and article-settings
-      node_save($node);
-      // Then we need to update the ArticleStatus in the Title-list
-      if ($node->nid) {
-        db_update('os2web_borger_dk_titles')
-          ->fields(array('ArticleStatus' => $node->nid))
-          ->condition('ArticleID', $article['external_id'], '=')
-          ->execute();
-        drupal_goto('node/' . $node->nid . '/edit');
+        // We need to store the field values and article-settings
+        node_save($node);
+        // Then we need to update the ArticleStatus in the Title-list
+        if ($node->nid) {
+          db_update('os2web_borger_dk_titles')
+            ->fields(array('ArticleStatus' => $node->nid))
+            ->condition('ArticleID', $article['external_id'], '=')
+            ->execute();
+          drupal_goto('node/' . $node->nid . '/edit');
+        }
       }
     }
   }
