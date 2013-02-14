@@ -90,7 +90,7 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
   $sync_options[0] = t('Disabled (Syncronize manually)');
   $form['os2web_borger_dk_articles_settings_3']['borger_dk_nightly_article_sync'] = array(
     '#type' => 'select',
-    '#title' => t('Select when you want to syncronize'),
+    '#title' => t('Select when imported articles should be updated'),
     '#options' => $sync_options,
     '#description' => t('At what time of day should articles be syncronized with the Borger.dk-Webservice.'),
     '#default_value' => variable_get('borger_dk_nightly_article_sync'),
@@ -147,6 +147,28 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
     '#title' => t('Activate auto-submit when selecting an article to import by its title.'),
     '#description' => t('Check to enable the title-search auto-submit when importing articles from Borger.dk'),
     '#default_value' => variable_get('borger_dk_article_titles_search_auto_submit', 1),
+  );
+
+  $form['os2web_borger_dk_articles_settings_6'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Borger.dk Menu import'),
+    '#collapsible' => TRUE,
+    '#group' => 'vertical_settings_tab',
+  );
+  $form['os2web_borger_dk_articles_settings_6']['borger_dk_articles_borger_dk_menus_import'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Import and utilize Borger.dk-menus'),
+    '#description' => t('Check to enable the menu-import from Borger.dk'),
+    '#default_value' => variable_get('borger_dk_articles_borger_dk_menus_import', 0),
+  );
+  $sync_options = drupal_map_assoc(range(1, 24));
+  $sync_options[0] = t('Disabled (No menu syncronization)');
+  $form['os2web_borger_dk_articles_settings_6']['borger_dk_articles_nightly_menu_sync'] = array(
+    '#type' => 'select',
+    '#title' => t('Select when the menu-structure should be imported'),
+    '#options' => $sync_options,
+    '#description' => t('At what time of day should menus be syncronized with the Borger.dk-Webservice.'),
+    '#default_value' => variable_get('borger_dk_articles_nightly_menu_sync'),
   );
 
   return system_settings_form($form);
