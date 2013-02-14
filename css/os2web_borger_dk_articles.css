@@ -42,11 +42,6 @@ div.field-items h4 {
   padding-left: 10px;
 }
 
-/*div.field-items ul {
-  padding-left: 10px;
-  margin-left: 10px;
-}*/
-
 div.field.field-name-field-os2web-selfservice.field-type-text-long.field-label-hidden {
   background-color: #ffffff;
   border-radius: 10px;
@@ -91,7 +86,5 @@ div.field.field-name-field-os2web-byline.field-type-text.field-label-hidden div 
   padding: 10px 10px;
   text-align: right;
 }
-
-/** NYT NYT NYT **/
 
 

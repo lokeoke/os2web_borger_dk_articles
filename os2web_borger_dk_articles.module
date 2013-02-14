@@ -31,7 +31,6 @@ function os2web_borger_dk_articles_menu() {
     'file' => 'os2web_borger_dk_articles.admin.inc',
   );
 
-  // TODO: Test the 'access arguments' with another user!!  -- Have done test with a normal user with add/delete own/edit own permission. It works.
   $items['import/borger-dk-article/autocomplete/%'] = array(
     'page callback' => '_os2web_borger_dk_articles_autocomplete_callback',
     'page arguments' => array(3),
@@ -119,7 +118,6 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
         );
         $form['fields_visible_formset']['field_settings'] = array(
           '#type' => 'checkboxes',
-          // '#title' => t('Visible article fields'),
           '#options' => $checkbox_opts,
           '#description' => t("Check or uncheck the respective fields"),
           '#default_value' => $initial_values,
@@ -268,7 +266,7 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
         os2web_borger_dk_articles_fix_disabled($form[$type]);
       }
       if ($type == 'field_os2web_byline' && !empty($form[$type])) {
-        $form[$type]['format'] = 'plaintext';
+        $form[$type]['#format'] = 'plaintext';
       }
     }
 
@@ -366,32 +364,10 @@ function os2web_borger_dk_articles_node_view($node, $view_mode, $langcode) {
         }
       }
     }
-  drupal_add_js(drupal_get_path('module', 'os2web_borger_dk_articles') .'/js/os2web_borger_dk_articles.js', 'file');
-  drupal_add_css(drupal_get_path('module', 'os2web_borger_dk_articles') .'/css/os2web_borger_dk_articles.css', 'file');
+    drupal_add_js(drupal_get_path('module', 'os2web_borger_dk_articles') .'/js/os2web_borger_dk_articles.js', 'file');
+    drupal_add_css(drupal_get_path('module', 'os2web_borger_dk_articles') .'/css/os2web_borger_dk_articles.css', 'file');
   }
 }
-
-/**
- * Implements theme_preprocess_field().
- */
-/*
-function cmstheme_preprocess_field(&$vars) {
-  $fields = $vars['element']['#object']->borger_dk_article['field_settings'];
-  $locked_os2web_types = array('field_os2web_borger_dk_url' => 1);
-  $data = field_info_instances('node', 'borger_dk_article');
-  foreach ($data as $type => $value) {
-    if (isset($fields[$type]) && $fields[$type] == '0') {
-      if ($vars['element']['#field_name'] == $type) {
-        $vars['items']['0']['#markup'] = '';
-      }
-    }
-    elseif (!isset($fields[$type])) {
-      if ($vars['element']['#field_name'] == $type) {
-        $vars['items']['0']['#markup'] = '';
-      }
-    }
-  }
-}*/
 
 /**
  * Implements hook_node_insert().
@@ -442,7 +418,9 @@ function os2web_borger_dk_articles_node_validate($node, $form, &$form_state) {
     $titles_search = isset($form_state['values']['os2web_borger_dk_article_title_search'])? $form_state['values']['os2web_borger_dk_article_title_search'] : FALSE;
     $url_text = isset($form_state['values']['os2web_borger_dk_article_url_text']) ? $form_state['values']['os2web_borger_dk_article_url_text'] : FALSE;
 
-    // If admin config set up : import Borger.dk article by URL 
+    // If admin config set up : import Borger.dk article by URL
+    // TODO: Check if this if-statement works as expected, and
+    // if we can drop the "!isset($node->nid)" part
     if ((!$admin_title_search) || ($titles_search == '0' && !isset($node->nid))) {
       if (!$titles_search && !isset($node->nid)) {
         if (!empty($url_text)) {
@@ -460,6 +438,8 @@ function os2web_borger_dk_articles_node_validate($node, $form, &$form_state) {
     // If admin config set up : import Borger.dk article by article title.
     else {
       // If search article checkbox by Title-search is CHECKED.
+      // TODO: Check if we can drop this if-statement. The else-statement above
+      // should be sufficient if the matched if-statement really works.
       if ($titles_search == '1') {
         $borger_dk_title = !empty($form_state['values']['os2web_borger_dk_article_title_text']) ? $form_state['values']['os2web_borger_dk_article_title_text'] : FALSE;
         if (!$borger_dk_title) {
@@ -648,12 +628,13 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
       $node->body['und'][0]['format']                     = 'full_html';
       $node->field_os2web_header['und'][0]['format']      = 'full_html';
       $node->field_os2web_selfservice['und'][0]['format'] = 'full_html';
-      $node->field_os2web_byline['und'][0]['format']      = 'full_html';
+      $node->field_os2web_byline['und'][0]['format']      = 'plaintext';
       $node->field_os2web_legislation['und'][0]['format'] = 'full_html';
       $node->field_os2web_shortlist['und'][0]['format']   = 'full_html';
       $node->field_os2web_recommended['und'][0]['format'] = 'full_html';
 
       $field_settings = $form_state['values']['field_settings'];
+      // TODO: Perform a logical-test (on paper) to see if the external_status is correct.
       $external_status = (empty($article['Exceptions']) && empty($article['error'])) ? 1 : 0;
       $external_status = (!empty($article['error']) && $article['error_type'] == 'not_found') ? -1 : $external_status;
       $node->borger_dk_article = array(
