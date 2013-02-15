@@ -88,25 +88,36 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
 
         $locked_os2web_types = array('field_os2web_borger_dk_url' => 1);
         $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
+        $admin_last_settings = variable_get('os2web_borger_dk_aritcles_admin_last_settings');
+
         $visible_items = (isset($form['#node']->borger_dk_article['field_settings'])) ? $form['#node']->borger_dk_article['field_settings'] : NULL;
         $data = field_info_instances('node', 'borger_dk_article');
-
-        // First we create a list of all field-names and labels
+        // First we create a list of all field-names and labels.
         $checkbox_opts = array();
         $initial_values = array();
+
         $data['title'] = array('label' => 'Title');
         foreach ($data as $type => $item) {
+          // Then we insert field label to our checkboxes options.
+          $checkbox_opts[$type] = t($item['label']);
+
+          // admin-config says we should show this item as an option
           if ($admin_display_fields[$type]) {
-            // admin-config says we should show this item as an option
-            $checkbox_opts[$type] = t($item['label']);
             if (empty($visible_items) || (!empty($visible_items) && !empty($visible_items[$type]))) {
+              //if ($visible_items != '0') {
               //If visible_items is empty that means we should use admin-config
               //or if the type of visible_items is set, and set to be displayed
               //then we add this type to the default_values
               $initial_values[] = $type;
             }
+            else {
+              if ($admin_last_settings[$type] != $admin_display_fields[$type] && $visible_items[$type] == $admin_last_settings[$type]) {
+                $initial_values[] = $type;
+              }
+            }
           }
         }
+        variable_set('os2web_borger_dk_aritcles_admin_last_settings', $admin_display_fields);
 
         // This is the field fieldset.
         $form['fields_visible_formset'] = array(
@@ -121,6 +132,7 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
           '#options' => $checkbox_opts,
           '#description' => t("Check or uncheck the respective fields"),
           '#default_value' => $initial_values,
+          '#after_build' => array('os2web_borger_dk_process_checkboxes'),
           '#group' => 'additional_settings',
         );
 
@@ -301,6 +313,19 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
   return $form;
 }
 
+/**
+ * Function os2web_borger_dk_process_checkboxes().
+ */
+function os2web_borger_dk_process_checkboxes($element) {
+  $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
+  foreach (element_children($element) as $key) {
+    if (!$admin_display_fields[$key]) {
+      $element[$key]['#attributes'] = array('disabled' => 'disabled');
+      $element[$key]['#description'] = t('Please go to OS2web Borger.dk settings to change the visibility for this field');
+    }
+  }
+  return $element;
+}
 
 /**
  * Function os2web_borger_dk_articles_fix_disabled().
@@ -349,18 +374,25 @@ function os2web_borger_dk_articles_node_load($nodes, $types) {
 function os2web_borger_dk_articles_node_view($node, $view_mode, $langcode) {
   if ($node->type == 'borger_dk_article') {
     $fields = $node->borger_dk_article['field_settings'];
+    // First get admin display settings.
+    $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
     $locked_os2web_types = array('field_os2web_borger_dk_url' => 1);
-    $data = field_info_instances('node', 'borger_dk_article');
-    foreach ($data as $type => $value) {
-      if (isset($fields[$type]) && $fields[$type] == '0') {
-        $content_field = (isset($node->content[$type]['#field_name'])) ? $node->content[$type]['#field_name'] : '';
-        if ($content_field == $type) {
-          $node->content[$type]['0']['#markup'] = '';
-        }
-        elseif (!isset($fields[$type])) {
+    foreach ($admin_display_fields as $type => $value) {
+      // If ADMIN set this field to display
+      if ($admin_display_fields[$type]) {
+        // If EDITOR set this field to be hidden.
+        if ($fields[$type] == '0') {
+          $content_field = (isset($node->content[$type]['#field_name'])) ? $node->content[$type]['#field_name'] : '';
           if ($content_field == $type) {
             $node->content[$type]['0']['#markup'] = '';
           }
+        }
+      }
+      // If ADMIN set this field to be hidden
+      else {
+        $content_field = (isset($node->content[$type]['#field_name'])) ? $node->content[$type]['#field_name'] : '';
+        if ($content_field == $type) {
+          $node->content[$type]['0']['#markup'] = '';
         }
       }
     }
