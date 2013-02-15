@@ -88,15 +88,17 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
 
         $locked_os2web_types = array('field_os2web_borger_dk_url' => 1);
         $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
-        $admin_last_settings = variable_get('os2web_borger_dk_aritcles_admin_last_settings');
 
-        $visible_items = (isset($form['#node']->borger_dk_article['field_settings'])) ? $form['#node']->borger_dk_article['field_settings'] : NULL;
         $data = field_info_instances('node', 'borger_dk_article');
         // First we create a list of all field-names and labels.
         $checkbox_opts = array();
         $initial_values = array();
 
         $data['title'] = array('label' => 'Title');
+        $visible_items = (isset($form['#node']->borger_dk_article['field_settings'])) ? $form['#node']->borger_dk_article['field_settings'] : NULL;
+
+        $admin_last_settings = variable_get('os2web_borger_dk_aritcles_admin_last_settings');
+
         foreach ($data as $type => $item) {
           // Then we insert field label to our checkboxes options.
           $checkbox_opts[$type] = t($item['label']);
@@ -267,7 +269,7 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
     // marked as hidden in the admin-display-settings.
     foreach ($admin_display_fields as $type => $item) {
       if (empty($item) && empty($locked_os2web_types[$type])) {
-        unset($form[$type]);
+        os2web_borger_dk_articles_fix_disabled($form[$type]);
       }
     }
     // Then we must disable all fields that has been marked as
@@ -540,7 +542,16 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
       // We have a node and should fetch field-values from form_state
       // nid, external_id, external_url, field_settings, published_date, last_update
       // EXCEPT: ONLY field_settings CAN BE UPDATED!!
+
       $field_settings = $form_state['values']['field_settings'];
+      // Check admin field settings : are there fields set as hidden by admin.
+      $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
+      foreach ($admin_display_fields as $type => $items) {
+        if (!$admin_display_fields[$type]) {
+          $field_settings[$type] = $type;
+        }
+      }
+
       $serialized_data = serialize($field_settings);
       db_update('os2web_borger_dk_articles')
         ->fields(array('field_settings' => $serialized_data))
@@ -666,6 +677,15 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
       $node->field_os2web_recommended['und'][0]['format'] = 'full_html';
 
       $field_settings = $form_state['values']['field_settings'];
+
+      // Check admin field settings : are there fields set as hidden by admin.
+      $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
+      foreach ($admin_display_fields as $type => $items) {
+        if (!$admin_display_fields[$type]) {
+          $field_settings[$type] = $type;
+        }
+      }
+
       // TODO: Perform a logical-test (on paper) to see if the external_status is correct.
       $external_status = (empty($article['Exceptions']) && empty($article['error'])) ? 1 : 0;
       $external_status = (!empty($article['error']) && $article['error_type'] == 'not_found') ? -1 : $external_status;
