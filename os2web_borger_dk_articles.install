@@ -23,6 +23,7 @@ function os2web_borger_dk_articles_uninstall() {
   variable_del('borger_dk_articles_borger_dk_menus_import');
   variable_del('borger_dk_articles_nightly_menu_sync');
   variable_del('os2web_borger_dk_aritcles_admin_last_settings');
+  variable_del('borger_dk_articles_microarticles');
 
   if (db_table_exists('os2web_borger_dk_articles')) {
     db_query('DROP TABLE {os2web_borger_dk_articles}');
@@ -121,6 +122,12 @@ function os2web_borger_dk_articles_schema() {
         'size' => 'medium',
         'description' => 'Field settings of the article item. Which fields are visible',
       ),
+      'field_microarticle_settings' => array(
+        'type' => 'text',
+        'not null' => FALSE,
+        'size' => 'medium',
+        'description' => 'The microarticle settings, which microarticles are visible.',
+      ),
       'published_date' => array(
         'type' => 'int',
         'not null' => TRUE,
@@ -188,25 +195,6 @@ function os2web_borger_dk_articles_schema() {
       'borger_dk_title_index' => array('ArticleTitle'),
       'borger_dk_url_index' => array('ArticleUrl'),
     ),
-  );
-
-  $schema['os2web_borger_dk_microarticle'] = array(
-    'description' => 'Table for storing the micro articles items imported from Borger.dk.',
-    'fields' => array(
-      'nid'  => array(
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        'description' => 'The node identifier for an microarticle item.',
-      ),
-      'field_microarticle_settings' => array(
-        'type' => 'text',
-        'not null' => TRUE,
-        'size' => 'medium',
-        'description' => 'The microarticle content.',
-      ),
-    ),
-    'primary key' => array('nid'),
   );
 
 /*
