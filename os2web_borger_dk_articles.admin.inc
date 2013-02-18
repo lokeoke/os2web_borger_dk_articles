@@ -25,13 +25,16 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
   $data = field_info_instances('node', 'borger_dk_article');
   $newdata = array();
   $field_name = array();
+  $init = array();
   $field_name['title'] = 'title';
   $newdata['title'] = t('Title');
+  $init['title'] = 'title';
   foreach ($data as $type => $item) {
     if (empty($locked_os2web_types[$type])) {
       $field_name[$type] = $type;
     }
     $newdata[$type] = t($item['label']);
+    $init[$type] = $type;
   }
   $form_display = variable_get('os2web_borger_dk_articles_display');
 
@@ -48,7 +51,7 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
     '#title' => t('Visible article fields'),
     '#options' => $newdata,
     '#description' => t('Check or uncheck the respective fields'),
-    '#default_value' => $selected,
+    '#default_value' => !empty($form_display) ? $selected : $init,
     '#group' => 'vertical_settings_tab',
   );
   $form['os2web_borger_dk_articles_settings_2'] = array(
@@ -69,13 +72,14 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
   foreach ($locked_os2web_types as $type => $locked) {
     unset($newdata[$type]);
     unset($selected2[$type]);
+    unset($init[$type]);
   }
   $form['os2web_borger_dk_articles_settings_2']['os2web_borger_dk_articles_editable'] = array(
     '#type' => 'checkboxes',
     '#title' => t('Editable article fields'),
     '#options' => $newdata,
     '#description' => t('Check or uncheck the respective fields'),
-    '#default_value' => $selected2,
+    '#default_value' => !empty($form_editable) ? $selected2 : $init,
     '#group' => 'vertical_settings_tab',
   );
 
@@ -169,6 +173,19 @@ function os2web_borger_dk_articles_settings_form($form, $form_state) {
     '#options' => $sync_options,
     '#description' => t('At what time of day should menus be syncronized with the Borger.dk-Webservice.'),
     '#default_value' => variable_get('borger_dk_articles_nightly_menu_sync'),
+  );
+
+  $form['os2web_borger_dk_articles_settings_7'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Microarticles visibility and editability'),
+    '#collapsible' => TRUE,
+    '#group' => 'vertical_settings_tab',
+  );
+  $form['os2web_borger_dk_articles_settings_7']['borger_dk_articles_microarticles'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Show and edit microarticles individually'),
+    '#description' => t('Check to enable visibility and editablity of microarticles from Borger.dk '),
+    '#default_value' => variable_get('borger_dk_articles_microarticles', 0),
   );
 
   return system_settings_form($form);

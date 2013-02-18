@@ -22,12 +22,16 @@ function os2web_borger_dk_articles_uninstall() {
   variable_del('borger_dk_article_titles_search_auto_submit');
   variable_del('borger_dk_articles_borger_dk_menus_import');
   variable_del('borger_dk_articles_nightly_menu_sync');
+  variable_del('os2web_borger_dk_aritcles_admin_last_settings');
 
   if (db_table_exists('os2web_borger_dk_articles')) {
     db_query('DROP TABLE {os2web_borger_dk_articles}');
   }
   if (db_table_exists('os2web_borger_dk_titles')) {
     db_query('DROP TABLE {os2web_borger_dk_titles}');
+  }
+  if (db_table_exists('os2web_borger_dk_microarticle')) {
+    db_query('DROP TABLE {os2web_borger_dk_microarticle}');
   }
 }
 
@@ -50,6 +54,7 @@ function os2web_borger_dk_articles_install() {
     }
     variable_set('os2web_borger_dk_articles_display', $display_field_names);
     variable_set('os2web_borger_dk_articles_editable', $edit_field_names);
+    variable_set('os2web_borger_dk_aritcles_admin_last_settings', $display_field_names);
   }
   else {
     variable_set('os2web_borger_dk_articles_display', array());
@@ -185,5 +190,55 @@ function os2web_borger_dk_articles_schema() {
     ),
   );
 
+  $schema['os2web_borger_dk_microarticle'] = array(
+    'description' => 'Table for storing the micro articles items imported from Borger.dk.',
+    'fields' => array(
+      'nid'  => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'The node identifier for an microarticle item.',
+      ),
+      'field_microarticle_settings' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'description' => 'The microarticle content.',
+      ),
+    ),
+    'primary key' => array('nid'),
+  );
+
+/*
+  $schema['os2web_borger_dk_microarticle'] = array(
+    'description' => 'Table for storing the micro articles items imported from Borger.dk.',
+    'fields' => array(
+      'nid'  => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'The node identifier for an microarticle item.',
+      ),
+      'id'  => array(
+        'type' => 'varchar',
+        'not null' => TRUE,
+        'length' => 40,
+        'description' => 'The ID of the microarticle.',
+      ),
+      'visible' => array(
+        'type' => 'boolean',
+        'not null' => TRUE,
+        'description' => 'Visible status of the microarticle.',
+      ),
+      'content' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'medium',
+        'description' => 'The microarticle content.',
+      ),
+    ),
+    'primary key' => array('nid', 'id'),
+  );
+*/
   return $schema;
 }

@@ -86,17 +86,56 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
           os2web_borger_dk_articles_autocomplete_form($form, $form_state);
         }
 
+        //******************************************* Micro articles
+        if (isset($form['#node']->nid)) {
+          $microarticle = variable_get('borger_dk_articles_microarticles');
+          // If microarticle is set up to show. 
+          if ($microarticle) {
+            $field_microarticle_settings = (isset($form['#node']->borger_dk_microarticle['field_microarticle_settings'])) ? $form['#node']->borger_dk_microarticle['field_microarticle_settings'] : NULL;
+            $body_text = (isset($form['body']['und']['0']['#default_value'])) ? $form['body']['und']['0']['#default_value'] : '';
+            unset($form['body']);
+            $div = preg_split('/<[\/]div>\n/', $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+            foreach ($div as $key => $text) {
+              $microno= $key+1;
+              $checkboxno= 'os2web_borger_dk_articles_micro_' . $microno;
+              $text_area = 'os2web_borger_dk_articles_micro_textarea_' . $microno;
+              if ($div[$key] != "\n") {
+                $form['os2web_borger_dk_articles_micro_settings_'.$microno] = array(
+                  '#type' => 'fieldset',
+                  //'#title' => t('Micro article'),
+                  //'#description' => t('Set the visibility of this micro article.'),
+                );
+                $form['os2web_borger_dk_articles_micro_settings_'.$microno][$text_area] = array(
+                  '#title' => t('Microarticle ' . $microno),
+                  '#type' => 'textarea',
+                  '#default_value' => variable_get($microno, $div[$key]),
+                );
+                $form['os2web_borger_dk_articles_micro_settings_'.$microno][$checkboxno] = array(
+                  '#type' => 'checkbox',
+                  '#title' => t('Visible'),
+                  '#description' => t("Check to display this microarticle"),
+                  '#default_value' => isset($field_microarticle_settings[$microno]) ? $field_microarticle_settings[$microno] : 1,
+                );
+              }
+            }
+          }
+        }
+        // ******************************************* end of microarticles
+
         $locked_os2web_types = array('field_os2web_borger_dk_url' => 1);
         $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
-        $admin_last_settings = variable_get('os2web_borger_dk_aritcles_admin_last_settings');
 
-        $visible_items = (isset($form['#node']->borger_dk_article['field_settings'])) ? $form['#node']->borger_dk_article['field_settings'] : NULL;
         $data = field_info_instances('node', 'borger_dk_article');
         // First we create a list of all field-names and labels.
         $checkbox_opts = array();
         $initial_values = array();
 
         $data['title'] = array('label' => 'Title');
+        $visible_items = (isset($form['#node']->borger_dk_article['field_settings'])) ? $form['#node']->borger_dk_article['field_settings'] : NULL;
+
+        $admin_last_settings = variable_get('os2web_borger_dk_aritcles_admin_last_settings');
+
         foreach ($data as $type => $item) {
           // Then we insert field label to our checkboxes options.
           $checkbox_opts[$type] = t($item['label']);
@@ -146,6 +185,15 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
           );
         }
 
+        if (isset($form['#node']->nid)) {
+          $form['actions']['microarticles'] = array(
+            '#type' => 'submit',
+            '#value' => t("Update microarticle content"),
+            '#weight' => 101,
+            '#access' => variable_get('node_preview_' . $node->type, DRUPAL_OPTIONAL) != DRUPAL_REQUIRED || (!form_get_errors() && isset($form_state['node_preview'])),
+            '#submit' => array('os2web_borger_dk_articles_microarticles_update_submit'),
+          );
+        }
         $form['#after_build'][] = 'os2web_borger_dk_articles_after_build';
 
         // Before we exit this function we set the static form-cache value
@@ -267,7 +315,7 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
     // marked as hidden in the admin-display-settings.
     foreach ($admin_display_fields as $type => $item) {
       if (empty($item) && empty($locked_os2web_types[$type])) {
-        unset($form[$type]);
+        os2web_borger_dk_articles_fix_disabled($form[$type]);
       }
     }
     // Then we must disable all fields that has been marked as
@@ -312,6 +360,7 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
 
   return $form;
 }
+
 
 /**
  * Function os2web_borger_dk_process_checkboxes().
@@ -365,6 +414,19 @@ function os2web_borger_dk_articles_node_load($nodes, $types) {
         'last_updated'    => $record->last_updated,
       );
     }
+    // If admin set to display microarticles
+    $microarticle = variable_get('borger_dk_articles_microarticles');
+    if ($microarticle) {
+      $field_result = db_query('SELECT nid, field_microarticle_settings FROM {os2web_borger_dk_microarticle} WHERE nid IN (:nids)', array(':nids' => array_keys($nodes)));
+      foreach ($field_result as $item) {
+
+        $field_microaritcle_settings = unserialize($item->field_microarticle_settings);
+        // error_log('field_micro 424=> ' . print_r($field_microaritcle_settings, TRUE). "\n\n", 3, '/private/var/log/apache2/debug_file.log');
+        $nodes[$item->nid]->borger_dk_microarticle = array(
+          'field_microarticle_settings' => $field_microaritcle_settings,
+        );
+      }
+    }
   }
 }
 
@@ -377,9 +439,33 @@ function os2web_borger_dk_articles_node_view($node, $view_mode, $langcode) {
     // First get admin display settings.
     $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
     $locked_os2web_types = array('field_os2web_borger_dk_url' => 1);
+    $microarticle = variable_get('borger_dk_articles_microarticles');
     foreach ($admin_display_fields as $type => $value) {
       // If ADMIN set this field to display
       if ($admin_display_fields[$type]) {
+        // If microarticle is set up to show by admin.
+        if ($microarticle) {
+          $field_microarticle_settings = $node->borger_dk_microarticle['field_microarticle_settings'];
+          $content_field = (isset($node->content[$type]['#field_name'])) ? $node->content[$type]['#field_name'] : '';
+          if ($content_field == 'body') {
+            $body_text = $node->body['und']['0']['value'];
+            $div = preg_split('/<[\/]div>\n/', $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
+            $show_div = '';
+            foreach ($div as $key => $text) {
+              $microno= $key+1;
+              $checkboxno= 'os2web_borger_dk_articles_micro_' . $microno;
+              $text_area = 'os2web_borger_dk_articles_micro_textarea_' . $microno;
+              if ($div[$key] != "\n") {
+                if ($field_microarticle_settings[$microno] != 0) {
+                  $show_div .= $div[$key] . "</div>" . "\n";
+                }
+              }
+            }
+            $node->content[$type]['0']['#markup'] = $show_div;
+          // BODY : microarticle should show only when editor set it to visible.
+          }
+
+        }
         // If EDITOR set this field to be hidden.
         if ($fields[$type] == '0') {
           $content_field = (isset($node->content[$type]['#field_name'])) ? $node->content[$type]['#field_name'] : '';
@@ -528,6 +614,40 @@ function os2web_borger_dk_articles_sync_submit($form, &$form_state) {
 }
 
 /**
+ * Function os2web_borger_dk_articles_microarticles_update_submit().
+ */
+function os2web_borger_dk_articles_microarticles_update_submit($form, &$form_state) {
+  // Get the node->nid from the form['#node']
+  $nid = $form['#node']->nid;
+
+  // First we find the external_id, and last_update time for this article
+  $data = db_query('SELECT external_id, last_updated FROM {os2web_borger_dk_articles} WHERE nid = :nid', array(':nid' => $nid))->fetchObject();
+
+  // Then we fetch the article item from the Borger.dk webservice
+  $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
+  $article = _os2web_borger_dk_articles_GetArticleByID($data->external_id, $wsdl);
+
+  $last_update = $data->last_updated;
+  $last_article_update = strtotime($article['last_updated']);
+  // And we check if the article has been updated before we update the node
+  if ($last_update < $last_article_update) {
+    //***********************************************************************
+    // Now we update the node content with the fetched BODY -> microarticles content
+    _os2web_borger_dk_articles_update_node_content($nid, $article);
+    // ***********************************************************************
+    // And we notify the user that the article has been updated
+    drupal_set_message(t('The article has been updated with new content from Borger.dk'), 'status');
+  }
+  else {
+    // We also notify the user if the article is up to date already
+    drupal_set_message(t('This article is identical to the article from Borger.dk, and has not been updated'), 'status');
+  }
+
+  drupal_goto('node/' . $nid . '/edit');
+
+}
+
+/**
  * Implements hook_node_submit().
  */
 function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
@@ -540,12 +660,49 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
       // We have a node and should fetch field-values from form_state
       // nid, external_id, external_url, field_settings, published_date, last_update
       // EXCEPT: ONLY field_settings CAN BE UPDATED!!
+
       $field_settings = $form_state['values']['field_settings'];
+      // Check admin field settings : are there fields set as hidden by admin.
+      $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
+      foreach ($admin_display_fields as $type => $items) {
+        if (!$admin_display_fields[$type]) {
+          $field_settings[$type] = $type;
+        }
+      }
+
       $serialized_data = serialize($field_settings);
       db_update('os2web_borger_dk_articles')
         ->fields(array('field_settings' => $serialized_data))
         ->condition('nid', $nid, '=')
         ->execute();
+
+        //******************************************* Micro articles
+      $microarticle = variable_get('borger_dk_articles_microarticles');
+      // If microarticle is set up to show. 
+      if ($microarticle) {
+        $field_microarticle_settings = array();
+        $body_text = isset($node->body['und'][0]['value']) ? $node->body['und'][0]['value'] : 0;
+        $div = preg_split('/<[\/]div>\n/', $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        foreach ($div as $key => $text) {
+          $microno= $key+1;
+          $checkboxno= 'os2web_borger_dk_articles_micro_' . $microno;
+          $text_area = 'os2web_borger_dk_articles_micro_textarea_' . $microno;
+          if ($div[$key] != "\n") {
+            // $checkbox_values = $form_state['values'][$checkboxno];
+            $field_microarticle_settings [$microno] = $node->$checkboxno;
+            variable_set($text_area, $node->$text_area);
+            }
+          }
+          $serialized_microarticle = serialize($field_microarticle_settings);
+          db_merge('os2web_borger_dk_microarticle')
+            ->fields(array(
+                'nid' => $nid,
+                'field_microarticle_settings' => $serialized_microarticle,
+                ))
+            ->condition('nid', $nid, '=')
+            ->execute();
+      }
+      //*****************************************  end of Micro articles
       // All other fields are handled by the normal Drupal field-handling
     }
     else {
@@ -666,6 +823,15 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
       $node->field_os2web_recommended['und'][0]['format'] = 'full_html';
 
       $field_settings = $form_state['values']['field_settings'];
+
+      // Check admin field settings : are there fields set as hidden by admin.
+      $admin_display_fields = variable_get('os2web_borger_dk_articles_display');
+      foreach ($admin_display_fields as $type => $items) {
+        if (!$admin_display_fields[$type]) {
+          $field_settings[$type] = $type;
+        }
+      }
+
       // TODO: Perform a logical-test (on paper) to see if the external_status is correct.
       $external_status = (empty($article['Exceptions']) && empty($article['error'])) ? 1 : 0;
       $external_status = (!empty($article['error']) && $article['error_type'] == 'not_found') ? -1 : $external_status;
