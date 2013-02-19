@@ -202,14 +202,24 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
                     '#default_value' => variable_get($microno, $div[$key]),
                     '#description' => t("Please check 'Article text' visible option below in 'Toggle display', or in OS2web borger.dk Settings (Toggle display/Editable article fields) to show/edit this microarticle."),
                   );
+                  if ($value_editable['body'] !== "body") {
+                    $form['os2web_borger_dk_articles_micro_settings_'.$microno][$checkboxno] = array(
+                      '#type' => 'checkbox',
+                      '#title' => t('Microarticle Visibility'),
+                      '#description' => t("Check to display this microarticle"),
+                      '#default_value' => isset($field_microarticle_settings[$microno]) ? $field_microarticle_settings[$microno] : 1,
+                    );
+                  }
+                  else {
+                    $form['os2web_borger_dk_articles_micro_settings_'.$microno][$checkboxno] = array(
+                      '#type' => 'checkbox',
+                      '#title' => t('Microarticle Visibility'),
+                      '#disabled' => TRUE,
+                      '#description' => t("Check to display this microarticle"),
+                      '#default_value' => isset($field_microarticle_settings[$microno]) ? $field_microarticle_settings[$microno] : 1,
+                    );
+                  }
 
-                  $form['os2web_borger_dk_articles_micro_settings_'.$microno][$checkboxno] = array(
-                    '#type' => 'checkbox',
-                    '#title' => t('Microarticle Visibility'),
-                    '#disabled' => TRUE,
-                    '#description' => t("Check to display this microarticle"),
-                    '#default_value' => isset($field_microarticle_settings[$microno]) ? $field_microarticle_settings[$microno] : 1,
-                  );
                 }
               }
             }
