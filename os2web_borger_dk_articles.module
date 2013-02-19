@@ -147,16 +147,6 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
             '#submit' => array('os2web_borger_dk_articles_sync_submit'),
           );
         }
-
-        if (isset($form['#node']->nid)) {
-          $form['actions']['microarticles'] = array(
-            '#type' => 'submit',
-            '#value' => t("Update microarticle content"),
-            '#weight' => 101,
-            '#access' => variable_get('node_preview_' . $node->type, DRUPAL_OPTIONAL) != DRUPAL_REQUIRED || (!form_get_errors() && isset($form_state['node_preview'])),
-            '#submit' => array('os2web_borger_dk_articles_microarticles_update_submit'),
-          );
-        }
         $form['#after_build'][] = 'os2web_borger_dk_articles_after_build';
 
         //******************************************* Micro articles
@@ -173,7 +163,7 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
             if (count($div)==1) {
               $div = preg_split('/\r\n<[\/]div>\r\n/', $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
             }
-            error_log("\n\n div_fields => " . print_r($div, TRUE), 3, '/private/var/log/apache2/debug_file.log');
+            // error_log("\n\n div_fields => " . print_r($div, TRUE), 3, '/private/var/log/apache2/debug_file.log');
             //error_log(' SHOULD NOT BE HERE => body :  ' . print_r($visible_items['body'], TRUE), 3, '/private/var/log/apache2/debug_file.log');
 
             foreach ($div as $key => $text) {
@@ -181,15 +171,17 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
               $checkboxno= 'os2web_borger_dk_articles_micro_' . $microno;
               $text_area = 'os2web_borger_dk_articles_micro_textarea_' . $microno;
               if ($div[$key] != $div[(count($div)-1)]) {
+                preg_match("/<h2 class=\"mArticle\" id=\"mArticle".$microno."\">(.*?)<\/h2>/", $div[$key], $match);
+                $h2 = isset($match[0]) ? $match[0] : '';
                 $form['os2web_borger_dk_articles_micro_settings_'.$microno] = array(
                   '#type' => 'fieldset',
-                  //'#title' => t('Micro article'),
+                  '#title' => t($h2),
                   //'#description' => t('Set the visibility of this micro article.'),
                 );
                 // If body (article text) visible/editable option is checked by ADMIN and EDITOR, then forms disabled is false.
                 if ($visible_items['body'] === "body" && $admin_display_fields['body'] === "body" && $value_editable['body'] === "body") {
                   $form['os2web_borger_dk_articles_micro_settings_'.$microno][$text_area] = array(
-                    '#title' => t('Microarticle ' . $microno),
+                    //'#title' => t('Microarticle ' . $microno),
                     '#type' => 'textarea',
                     '#default_value' => variable_get($microno, $div[$key]),
                   );
@@ -213,7 +205,7 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
 
                   $form['os2web_borger_dk_articles_micro_settings_'.$microno][$checkboxno] = array(
                     '#type' => 'checkbox',
-                    '#title' => t('Visible'),
+                    '#title' => t('Microarticle Visibility'),
                     '#disabled' => TRUE,
                     '#description' => t("Check to display this microarticle"),
                     '#default_value' => isset($field_microarticle_settings[$microno]) ? $field_microarticle_settings[$microno] : 1,
@@ -223,6 +215,17 @@ function os2web_borger_dk_articles_form_alter(&$form, &$form_state, $form_id) {
             }
           }
         }
+
+        if (isset($form['#node']->nid) && ($microarticle)) {
+          $form['actions']['microarticles'] = array(
+            '#type' => 'submit',
+            '#value' => t("Update microarticle content"),
+            '#weight' => 101,
+            '#access' => variable_get('node_preview_' . $node->type, DRUPAL_OPTIONAL) != DRUPAL_REQUIRED || (!form_get_errors() && isset($form_state['node_preview'])),
+            '#submit' => array('os2web_borger_dk_articles_microarticles_update_submit'),
+          );
+        }
+
         // ******************************************* end of microarticles
 
 
@@ -487,22 +490,27 @@ function os2web_borger_dk_articles_node_view($node, $view_mode, $langcode) {
         // If microarticle is set up to show by admin.
         if ($microarticle) {
           $content_field = (isset($node->content[$type]['#field_name'])) ? $node->content[$type]['#field_name'] : '';
-          // Check if content field is body and field_microarticle_settings is NOT empty. (The field_microarticle_setting will be empty when a new article imported and shown in a form then node_view will display full body text.)
+          // Check if content field is body and field_microarticle_settings is NOT empty.
+          // The field_microarticle_setting will be empty when a new article is imported and shown in a form, then node_view will display full body text.)
           if ($content_field == 'body' && !empty($field_microarticle_settings)) {
             $body_text = $node->body['und']['0']['value'];
             $div = preg_split('/<\/div>\n/', $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
             if (count($div) == 1){
               $div = preg_split("/\r\n<\/div>\r\n/", $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
             }
+             //error_log(' body_div => body 501 :  ' . print_r($div, TRUE)."\n\n", 3, '/private/var/log/apache2/debug_file.log');
 
             $show_div = '';
             foreach ($div as $key => $text) {
               $microno= $key+1;
               $checkboxno= 'os2web_borger_dk_articles_micro_' . $microno;
-              $text_area = 'os2web_borger_dk_articles_micro_textarea_' . $microno;
               if ($div[$key] != $div[(count($div)-1)]) {
+                //error_log(' field_micro => body 508 :  ' . print_r($div[$key], TRUE), 3, '/private/var/log/apache2/debug_file.log');
+
                 if ($field_microarticle_settings[$microno] != 0) {
-                  $show_div .= $div[$key] . "</div>\n";
+                  $show_div .= $div[$key];
+                  $show_div .= "\n</div>";
+                  $show_div .= "\n";
                 }
               }
             }
@@ -510,6 +518,9 @@ function os2web_borger_dk_articles_node_view($node, $view_mode, $langcode) {
           // BODY : microarticle should show only when editor set it to visible.
           }
 
+        }
+        else {
+          $node->content['body']['0']['#markup'] = $node->body['und']['0']['value'];
         }
         // If EDITOR set this field to be hidden.
         if ($fields[$type] == '0') {
@@ -672,24 +683,26 @@ function os2web_borger_dk_articles_microarticles_update_submit($form, &$form_sta
   $wsdl = variable_get('os2web_borger_dk_webservice', 'https://www.borger.dk/_vti_bin/borger/ArticleExport.svc?wsdl');
   $article = _os2web_borger_dk_articles_GetArticleByID($data->external_id, $wsdl);
 
-  $last_update = $data->last_updated;
-  $last_article_update = strtotime($article['last_updated']);
-  // And we check if the article has been updated before we update the node
-  if ($last_update < $last_article_update) {
-    //***********************************************************************
-    // Now we update the node content with the fetched BODY -> microarticles content
-    _os2web_borger_dk_articles_update_node_content($nid, $article);
-    // ***********************************************************************
+  //***********************************************************************
+  if (empty($article['Exceptions']) && empty($article['error'])) {
+    // First we load the corresponding node.
+    $node = node_load($nid, NULL, TRUE);
+    $body = '';
+    foreach ($article['kernetekst'] as $div => $content) {
+      $body .= $content . "\n";
+    }
+    // Only update the body text.
+    $node->body['und'][0]['value'] = $body;
+    node_save($node);
     // And we notify the user that the article has been updated
-    drupal_set_message(t('The article has been updated with new content from Borger.dk'), 'status');
+    drupal_set_message(t('The microarticles have been updated'), 'status');
   }
   else {
-    // We also notify the user if the article is up to date already
-    drupal_set_message(t('This article is identical to the article from Borger.dk, and has not been updated'), 'status');
+    // We notify the user the exceptions or error. 
+    drupal_set_message(t('There was an error updating microarticles. Please try it later.'), 'status');
+
   }
-
   drupal_goto('node/' . $nid . '/edit');
-
 }
 
 /**
@@ -721,7 +734,7 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
         ->condition('nid', $nid, '=')
         ->execute();
 
-        //******************************************* Micro articles
+      //******************************************* Micro articles
       $microarticle = variable_get('borger_dk_articles_microarticles');
       // If microarticle is set up to show. 
       if ($microarticle) {
@@ -729,24 +742,33 @@ function os2web_borger_dk_articles_node_submit(&$node, $form, &$form_state) {
         $body_text = isset($node->body['und'][0]['value']) ? $node->body['und'][0]['value'] : 0;
         
         $div = preg_split('/<[\/]div>\n/', $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
-
+        // "line break" in different OS. (e.g window : \r\n, linux : \n).
         if (count($div) == 1){
           $div = preg_split("/\r\n<\/div>\r\n/", $body_text, -1, PREG_SPLIT_DELIM_CAPTURE);
         }
-        error_log(' 725_ div => ' . print_r($div, TRUE). "\n\n", 3, '/private/var/log/apache2/debug_file.log');
-
+        $article_text = '';
         foreach ($div as $key => $text) {
           $microno= $key+1;
           $checkboxno= 'os2web_borger_dk_articles_micro_' . $microno;
           $text_area = 'os2web_borger_dk_articles_micro_textarea_' . $microno;
+          // The last div contents a link break.
           if ($div[$key] != $div[(count($div)-1)]) {
-            // $checkbox_values = $form_state['values'][$checkboxno];
             $field_microarticle_settings [$microno] = $node->$checkboxno;
-            variable_set($text_area, $node->$text_area);
+            //************** body *************
+            
+            if (empty($node->$text_area)) {
+              $node->$text_area = '<div class="microArticle">';
+            }
+            $article_text .= $node->$text_area;
+            $article_text .= "\r\n</div>\r\n\r\n";
+
+            //**************end of body*************
             }
           }
-          error_log(' 734_ micro_settings_fields => ' . print_r($field_microarticle_settings, TRUE). "\n\n", 3, '/private/var/log/apache2/debug_file.log');
-
+          error_log(' article_text => body all 773 :  ' . print_r($article_text, TRUE), 3, '/private/var/log/apache2/debug_file.log');
+          $node->body['und'][0]['value'] = (!empty($article_text)) ? $article_text : '';
+          $node->body['und'][0]['safe_value'] = (!empty($article_text)) ? $article_text : '';
+          node_save($node);
           $serialized_microarticle = serialize($field_microarticle_settings);
           db_update('os2web_borger_dk_articles')
             ->fields(array(
