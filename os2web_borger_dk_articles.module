@@ -266,7 +266,7 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
     // non-editable in the admin-editable-settings.
     $value_editable = variable_get('os2web_borger_dk_articles_editable', array(NULL));
     foreach ($value_editable as $type => $editable) {
-      if (empty($editable) || !empty($locked_os2web_types[$type])) {
+      if ((empty($editable) || !empty($locked_os2web_types[$type])) && !empty($form[$type])) {
         os2web_borger_dk_articles_fix_disabled($form[$type]);
       }
       if ($type == 'field_os2web_byline' && !empty($form[$type])) {
