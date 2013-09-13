@@ -277,10 +277,10 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
     // Finally we lock the special types.
     foreach ($locked_os2web_types as $type => $locked) {
       if (isset($form[$type])) {
-        $form[$type]['#required'] = 0;
-        $form[$type]['und']['#required'] = 0;
-        $form[$type]['und'][0]['#required'] = 0;
-        $form[$type]['und'][0]['value']['#required'] = 0;
+        $form[$type]['#required'] = FALSE;
+        $form[$type]['und']['#required'] = FALSE;
+        $form[$type]['und'][0]['#required'] = FALSE;
+        $form[$type]['und'][0]['value']['#required'] = FALSE;
         os2web_borger_dk_articles_fix_disabled($form[$type]);
       }
     }
@@ -290,13 +290,18 @@ function os2web_borger_dk_articles_after_build($form, &$form_state) {
     // form-field except the locked types.
     $data = field_info_instances('node', 'borger_dk_article');
     foreach ($data as $type => $item) {
-      unset($form[$type]);
+      $form[$type]['#access'] = FALSE;
     }
-    unset($form['title']);
+    $form['field_os2web_borger_dk_url']['#required'] = FALSE;
+    $form['field_os2web_borger_dk_url']['und']['#required'] = FALSE;
+    $form['field_os2web_borger_dk_url']['und'][0]['#required'] = FALSE;
+    $form['field_os2web_borger_dk_url']['und'][0]['value']['#required'] = FALSE;
+    $form['title']['#required'] = FALSE;
+    $form['title']['#access'] = FALSE;
 
     // TODO: Move this to the module-feature, and delete from this location.
     if (isset($form['path']['pathauto']['#default_value'])) {
-      $form['path']['pathauto']['#checked'] = 0;
+      $form['path']['pathauto']['#checked'] = FALSE;
     }
     $form['status'] = 0;
     $form['promote'] = 0;
